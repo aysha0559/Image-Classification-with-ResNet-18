@@ -1,6 +1,6 @@
-data/
-runs/
-dist/
+/data/
+/runs/
+/dist/
 *.pt
 *.pth
 .env

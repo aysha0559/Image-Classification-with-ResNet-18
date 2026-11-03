@@ -57,3 +57,23 @@ def test_git_helpers_and_timer():
     with Timer() as t:
         sum(range(1000))
     assert t.elapsed >= 0
+
+
+def test_make_generator_repeats():
+    from src.utils import make_generator
+
+    a = torch.randperm(20, generator=make_generator(0))
+    b = torch.randperm(20, generator=make_generator(0))
+    c = torch.randperm(20, generator=make_generator(1))
+    assert torch.equal(a, b) and not torch.equal(a, c)
+
+
+def test_seed_worker_seeds_numpy():
+    from src.utils import seed_worker
+
+    torch.manual_seed(5)
+    seed_worker(0)
+    a = np.random.rand(3)
+    torch.manual_seed(5)
+    seed_worker(0)
+    assert np.array_equal(a, np.random.rand(3))

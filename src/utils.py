@@ -26,6 +26,20 @@ def set_seed(seed: int) -> None:
     torch.backends.cudnn.deterministic = True
 
 
+def seed_worker(worker_id: int) -> None:
+    """DataLoader `worker_init_fn`: seed Python and NumPy in each worker from its torch seed."""
+    worker_seed = torch.initial_seed() % 2**32
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+
+
+def make_generator(seed: int) -> torch.Generator:
+    """Return a CPU torch.Generator seeded with `seed`, for DataLoader shuffling."""
+    g = torch.Generator()
+    g.manual_seed(seed)
+    return g
+
+
 def get_device(pref: str = "auto") -> torch.device:
     """Return the torch device for `pref` ("auto", "cpu" or "cuda"); auto picks CUDA if present."""
     if pref == "auto":
