@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Calls python -m scripts.download_cifar10c. Filled in Phase 02.
+# Download, verify and extract CIFAR-10-C. Run from the repo root; arguments are passed on,
+# for example: bash scripts/download_cifar10c.sh --data-dir /content/data --verify-only
 set -euo pipefail
-echo "Not implemented yet (Phase 02)." >&2
-exit 1
+cd "$(dirname "$0")/.."
+exec "${PYTHON:-python}" -m scripts.download_cifar10c "$@"

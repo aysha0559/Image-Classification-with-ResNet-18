@@ -121,3 +121,71 @@ One entry per phase, appended at the end of each build phase
 
 ### Ideas for later
 - none
+
+## Phase 02: data-corrupted  (2026-11-03, branch phase-02-data-corrupted, commit: the one titled "phase 02: CIFAR-10-C download, verify, loader, sample grid")
+
+### Built
+- Before branching, at the human's request: committed `validation/phase-01.md` (PASS) on `phase-01-data-clean` and merged that branch into `main` (`--no-ff`, not pushed). `phase-02-data-corrupted` branches from that merge.
+- `scripts/download_cifar10c.py` (+ `scripts/download_cifar10c.sh` wrapper, passes arguments on; `PYTHON` env var picks the interpreter):
+  - Reads the archive's name, size and md5 from `https://zenodo.org/api/records/2535967` at run time (nothing typed from memory).
+  - Downloads to `DATA_DIR/CIFAR-10-C.tar` via `CIFAR-10-C.tar.part` with HTTP Range resume and a tqdm bar; skips the download if the archive already verifies, and skips everything if the extracted folder already matches the checksums JSON.
+  - md5 check against Zenodo (prints both); on failure deletes and re-downloads once, a second failure stops with an error.
+  - Extracts (only paths under `CIFAR-10-C/` allowed; tar `data` filter when available), checks exactly 20 `.npy` files with the expected shapes/dtypes, sha256s each file.
+  - Writes `splits/cifar10c_checksums.json` if absent; if present, compares against it instead (so Colab checks against the committed hashes) and also checks Zenodo's metadata still matches the JSON's `archive` block.
+  - `--verify-only`: no network; structure + sha256 against the JSON. Exit code 1 with `ERROR: ...` on any failure.
+- `splits/cifar10c_checksums.json`: source, archive {name, size, checksum_type, checksum} and 20 file sha256s. Committed.
+- `src/data/cifar10c.py`: docstring "Test-only. Never import from training code."; `validate_condition` (name in the 15 + 4 extras, severity an int in 1..5, else `ValueError`); `load_cifar10c(data_dir, corruption, severity)` memory-maps the file (`mmap_mode="r"`) and slices the severity's rows; labels returned as int64. `N_PER_SEVERITY = 10_000` is a module constant so tests can shrink it. `CIFAR10C(corruption, severity, transform=None, data_dir=None)` defaults to `build_eval_transform()` and `DATA_DIR`.
+- `scripts/make_sample_grid.py`: rows = 15 corruptions (labelled with name and family), columns = clean + severity 1-5; PNG at 200 dpi + PDF. Default `--index 23` (a red fire truck, chosen by eye from test images 0-39 as large, centred and high-contrast). Also checks the CIFAR-10-C label of that image equals the clean label for every condition.
+- `results/figures/fig7_sample_grid.png` and `.pdf`.
+- `notebooks/00_colab_setup.ipynb`: new cell. If `MyDrive/cifar10-robustness/data/CIFAR-10-C` exists: copy to `/content/data`, run `--verify-only`. Otherwise: run the download script into `/content/data` (raises on failure), copy the verified folder to Drive, delete the local archive.
+- `notebooks/01_explore_data.ipynb`: section 2 shows the saved grid PNG (matplotlib only, no IPython dependency).
+- `tests/test_cifar10c.py` (22 tests, fake 5-images-per-severity folder): rows per severity, label dtype int64, bad names, severities 0/6/-1/2.0/"3"/True, wrong row count, missing file, Dataset default transform normalises, custom transform.
+- `tests/test_no_leakage.py`: (a) `src/train.py`, `src/data/transforms.py`, `src/data/corruptions.py`, `src/models/*.py` never contain `cifar10c` / `cifar-10-c` (case-insensitive); (b) AST check that no module under `src/` or `scripts/` except `src/evaluate.py` and `scripts/make_sample_grid.py` imports `cifar10c`.
+
+### How to run it
+    .venv/bin/python -m scripts.download_cifar10c                 # or: bash scripts/download_cifar10c.sh [--data-dir DIR]
+    .venv/bin/python -m scripts.download_cifar10c --verify-only
+    .venv/bin/python -m scripts.make_sample_grid                  # [--index 23] [--out results/figures/fig7_sample_grid.png]
+    .venv/bin/ruff format --check . && .venv/bin/ruff check . && .venv/bin/pytest -q
+
+### Verified (with output)
+- Zenodo metadata (`curl https://zenodo.org/api/records/2535967`): `CIFAR-10-C.tar 2918471680 md5:56bf5dcef84df0e2308c6dcbcbbd8499`.
+- Download path: the script resumed a partial `.part` file over HTTP Range (`CIFAR-10-C.tar: 2%| 59.1M/2.92G` at start, server honoured the range). At about 400 kB/s this would take ~2 h, so **the human downloaded the same URL with a download manager** and the archive was moved into `data/`. The script then verified it like any other archive.
+- Archive checksum, first full run: `archive md5: zenodo 56bf5dcef84df0e2308c6dcbcbbd8499  local 56bf5dcef84df0e2308c6dcbcbbd8499` -> `archive checksum matches Zenodo`; `extracting 21 entries to data/CIFAR-10-C` (folder + 20 files); `structure ok: 20 files, corruptions uint8 (50000, 32, 32, 3)`; `wrote splits/cifar10c_checksums.json (20 file hashes)` (real 0m17s).
+- Idempotent: second run -> `all 20 files match splits/cifar10c_checksums.json` / `extracted files already verified; nothing to download`.
+- `--verify-only` (also via the `.sh` wrapper) -> `all 20 files match ...`.
+- Tamper: scratch folder with symlinks to the 19 real files + a copy of `fog.npy` with one bit flipped at byte 1000 -> `ERROR: sha256 mismatch against cifar10c_checksums.json: ['fog.npy']`, exit 1.
+- Inventory (scratch script, `np.load(mmap_mode="r")`): 19 corruption files uint8 (50000, 32, 32, 3); `labels uint8 (50000,)`.
+- Label alignment: `labels[s*10000:(s+1)*10000] == CIFAR10(train=False).targets` -> `[True, True, True, True, True]`; also equal for every (corruption, severity) loaded through `load_cifar10c`.
+- `load_cifar10c("./data", "fog", 3)` -> `(10000, 32, 32, 3) uint8 (10000,) int64`.
+- Severity ordering, mean |corrupted - clean| over the 10,000 images (pixel units 0-255), s1..s5:
+  gaussian_noise 7.99 11.90 15.74 17.63 19.51 | shot_noise 5.91 8.31 13.03 14.98 18.21 | impulse_noise 1.28 2.55 3.82 6.38 8.92 | defocus_blur 1.38 3.32 5.01 6.53 9.32 | **glass_blur 11.17 11.31 11.12 18.18 17.44** | **motion_blur 6.97 10.43 13.10 13.08 15.29** | zoom_blur 8.81 10.38 12.41 14.50 16.50 | snow 10.70 23.75 25.38 37.15 51.80 | **frost 30.42 44.75 49.42 44.82 43.08** | fog 10.80 21.31 27.61 32.42 39.07 | brightness 10.02 20.28 30.09 39.37 56.00 | contrast 10.65 21.30 25.56 29.82 36.21 | **elastic_transform 21.87 20.00 17.95 16.54 13.67** | pixelate 1.79 3.40 4.14 6.24 8.66 | jpeg_compression 5.40 6.65 7.07 7.53 8.14 -> strictly increasing for **11/15**.
+- Sample grid opened and inspected: title, column headers clean / severity 1-5, 15 labelled rows. Noise, defocus/zoom blur, snow, fog, brightness, contrast, pixelate, jpeg visibly get stronger left to right. glass_blur s1-s3 look alike; frost s5 shows more frost texture but less blue tint than s3-s4; elastic_transform s1 looks the most distorted and later severities look milder (matches the decreasing pixel difference).
+- Leakage guard: in a scratch copy of the repo, appending `from src.data.cifar10c import load_cifar10c` to `src/train.py` and `import src.data.cifar10c` to `src/analysis.py` -> both tests fail (`CIFAR-10-C referenced in training code: ['src/train.py: cifar10c']`; `... may import cifar10c: ['src/analysis.py', 'src/train.py']`). In the repo both pass.
+- Notebook 01 executed headless (code cells via nbformat): counts totals `[45000, 5000, 10000]`, grid image `(3870, 1820, 4)`. Notebook 00 cells are Colab-only (Drive mount); not executed here.
+- Lint/tests: `ruff format --check .` -> `68 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `67 passed in 4.25s` (real 0m5.4s, CPU).
+
+### Numbers produced
+- Archive: CIFAR-10-C.tar, 2918471680 bytes, md5 56bf5dcef84df0e2308c6dcbcbbd8499 (source: Zenodo API, stored in `splits/cifar10c_checksums.json`) [real]
+- Per-file sha256: `splits/cifar10c_checksums.json` [real]
+- Per-severity mean pixel differences above (source: scratch check script output, not stored in the repo) [real, descriptive only]
+
+### Changed from earlier phases
+- `main`: phase 01 merged (see Built), at the human's request.
+- `notebooks/00_colab_setup.ipynb`, `notebooks/01_explore_data.ipynb`: cells added (in scope for this phase).
+
+### Not done / deferred
+- Evaluation over CIFAR-10-C -> Phase 06.
+- `--include-extra` handling -> Phase 06 (the loader already accepts the 4 extra names).
+
+### Known issues
+- **VALIDATE V8 expects mean pixel difference to grow from severity 1 to 5 for at least 13 of 15 corruptions; the real (checksum-verified) data gives 11/15.** The exceptions are glass_blur, motion_blur (s3 13.10 vs s4 13.08), frost and elastic_transform. This is the published data, not the slicing: the 11 others increase cleanly, the labels align for every severity, and the grid shows the same pattern. Pixel difference is a weak severity proxy for frost (the image is blended with a frost texture at shifting weights) and elastic_transform (CIFAR-10-C's parameters for it do not make the pixel change monotonic). The human should decide whether V8's threshold should be 11/15 or the check should be reworded (for example "severity 1 and 5 differ, and ordering is monotonic for the noise, defocus/zoom blur, snow, fog, brightness, contrast, pixelate and jpeg rows").
+- The local venv has no IPython, so notebook 01 shows the grid with matplotlib rather than `IPython.display`.
+- On free Drive (15 GB), the extracted CIFAR-10-C takes about 2.9 GB; the Colab cell does not keep the archive on Drive.
+
+### Decisions used
+- D7: 15 standard corruptions x 5 severities in the grid; the 4 extras are accepted by the loader but not in the grid or the defaults.
+- RULES section 3: CIFAR-10-C only through `src/data/cifar10c.py`; imported only by `scripts/make_sample_grid.py` so far (and `src/evaluate.py` later), guarded by `tests/test_no_leakage.py`.
+
+### Ideas for later
+- none
