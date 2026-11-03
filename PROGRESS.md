@@ -14,8 +14,9 @@ One entry per phase, appended at the end of each build phase
 - `src/utils.py`: `set_seed`, `get_device`, `get_git_commit`, `is_git_dirty`, `atomic_save`, `env_path` (C2 defaults), `Timer`.
 - `configs/`: 6 main + 2 optional S0 (`*_none.yaml`) + `smoke.yaml`; values from C4/D4/D5; ResNet epochs = 40 (proposed D4 value).
 - `tests/test_constants.py`, `tests/test_config.py`, `tests/test_utils.py`.
-- `notebooks/00_colab_setup.ipynb`: mount Drive, clone/pull (`REPO_URL` left empty for the human), `pip install -r requirements.txt`, set `DATA_DIR`/`RUNS_DIR`, print python/torch/torchvision/GPU.
-- `CLAUDE.md`, `README.md` (placeholder), `LICENSE` (MIT, holder `<name>`), this file.
+- `notebooks/00_colab_setup.ipynb`: mount Drive, clone/pull `REPO_URL` (set to the GitHub repo) at `BRANCH`, `pip install -r requirements.txt`, set `DATA_DIR`/`RUNS_DIR`, print python/torch/torchvision/GPU.
+- `CLAUDE.md`, `README.md` (placeholder), `LICENSE` (MIT, holder "cifar10-robustness-study contributors": the human asked to stay anonymous), this file.
+- GitHub: public repo https://github.com/aysha0559/Image-Classification-with-ResNet-18 created at the human's request; `main` and `phase-00-setup` pushed. Not merged (merge waits for validation).
 
 ### How to run it
     # Python 3.12 was used (this machine only had 3.14; 3.12.16 was fetched with `uv python install 3.12`)
@@ -44,7 +45,7 @@ One entry per phase, appended at the end of each build phase
 
 ### Not done / deferred
 - Colab's current torch/torchvision versions: UNKNOWN (not checked with the human). `requirements-local.txt` pins the latest stable pair available on the PyTorch CPU index today (torch 2.14.1 / torchvision 0.29.2; torch 2.15.0 exists but its torchvision is not yet published). **The human must compare these with Colab's `torch.__version__` in Phase 07** and adjust the local pins to the same major.minor (D9).
-- `REPO_URL` in the Colab notebook and the LICENSE copyright holder are left for the human.
+- The notebook's `BRANCH` is `main`, which holds only `docs/` until `phase-00-setup` is merged; until then set `BRANCH = "phase-00-setup"` on Colab.
 - ResNet-18 epochs (D4) stay open until Phase 07.
 
 ### Known issues
