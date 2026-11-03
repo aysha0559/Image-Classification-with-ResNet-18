@@ -1,0 +1,31 @@
+# Tiny CPU run used by validators. Not a real experiment.
+model: simple_cnn
+strategy: standard
+seed: 0
+epochs: 1
+batch_size: 128
+optimizer:
+  name: sgd
+  lr: 0.1
+  momentum: 0.9
+  nesterov: true
+  weight_decay: 0.0005
+scheduler:
+  name: cosine
+amp: true
+val_size: 5000
+split_seed: 42
+num_workers: 0
+device: cpu
+subset: 512
+strategy_params:
+  augmix:
+    severity: 3
+    mixture_width: 3
+    chain_depth: -1
+    alpha: 1.0
+    all_ops: false
+  corruption_aware:
+    p: 0.5
+    corruptions: [gaussian_noise, defocus_blur, contrast, jpeg_compression]
+    severities: [1, 2, 3, 4, 5]
