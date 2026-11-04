@@ -1,0 +1,18 @@
+{
+  "run_id": "cnn-standard-s0",
+  "model": "simple_cnn",
+  "strategy": "standard",
+  "seed": 0,
+  "epochs": 30,
+  "git_commit": "004edc3c3324ebd5174b4a1819d9bb6858885511",
+  "git_dirty": false,
+  "torch_version": "2.11.0+cu130",
+  "torchvision_version": "0.26.0+cu130",
+  "python_version": "3.13.16",
+  "device_name": "Tesla T4",
+  "n_params": 666858,
+  "started_at": "2026-11-04T13:13:22+00:00",
+  "finished_at": "2026-11-04T13:27:11+00:00",
+  "train_time_s": 619.9993562280001,
+  "status": "finished"
+}

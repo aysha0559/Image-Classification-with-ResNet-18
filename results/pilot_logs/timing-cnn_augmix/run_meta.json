@@ -1,0 +1,18 @@
+{
+  "run_id": "timing-cnn_augmix",
+  "model": "simple_cnn",
+  "strategy": "augmix",
+  "seed": 0,
+  "epochs": 30,
+  "git_commit": "004edc3c3324ebd5174b4a1819d9bb6858885511",
+  "git_dirty": false,
+  "torch_version": "2.11.0+cu130",
+  "torchvision_version": "0.26.0+cu130",
+  "python_version": "3.13.16",
+  "device_name": "Tesla T4",
+  "n_params": 666858,
+  "started_at": "2026-11-04T13:36:43+00:00",
+  "finished_at": null,
+  "train_time_s": null,
+  "status": "running"
+}

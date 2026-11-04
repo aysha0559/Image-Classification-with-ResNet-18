@@ -594,3 +594,7 @@ All in `results/pilot_report.md`, with sources [real, except the ResNet-18 evalu
 
 ### Ideas for later
 - none
+
+### Phase 07 addendum (2026-11-04, after validation PASS)
+- `results/pilot_logs/`: added at the human's approval, with C1 updated first. It holds the 2 console logs, `run_meta.json` of the pilot and the 5 timing runs, and the timing runs' train logs, so `results/pilot_report.md` traces to files in the repo. They are the files downloaded from Drive, unchanged.
+- `results/pilot_report.md`: sources point there, and the disconnect section now says 2 tracebacks, as `validation/phase-07.md` noted. No number changed.
