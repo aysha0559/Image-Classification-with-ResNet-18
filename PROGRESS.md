@@ -190,3 +190,84 @@ One entry per phase, appended at the end of each build phase
 
 ### Ideas for later
 - none
+
+## Phase 03: train-transforms  (2026-11-04, branch phase-03-train-transforms, commit: the one titled "phase 03: training transforms S0-S3 and seen corruptions")
+
+### Built
+- `src/data/corruptions.py`: `apply_corruption(img, name, severity, rng)` for the 4 seen corruptions only (any other name raises `ValueError` listing the allowed ones; bad severity or non-uint8-HWC input also raises). `RandomSeenCorruption(p, corruptions, severities)` on PIL images. Its docstring cites `ImageNet-C/create_c/make_cifar_c.py` at commit `ca360085d57889288c4143fddd8a707bbcae01bd` of `github.com/hendrycks/robustness` (read in this session) and lists the parameters per severity.
+- The generator is seeded from `torch.initial_seed()` and rebuilt when that seed changes, so workers get separate streams even if the object was used in the parent first. Names outside the seen list are rejected when the object is built, not at the first image. `cv2.setNumThreads(0)` is set at import, as a precaution for forked DataLoader workers.
+- `src/data/transforms.py`: `build_train_transform(strategy, params)` for `none`, `standard`, `augmix`, `corruption_aware`; `params` is the config's `strategy_params` block. Unknown strategy raises `ValueError`.
+- `src/data/cifar10.py`: `get_train_val_datasets` now defaults to `build_train_transform(cfg["strategy"], cfg["strategy_params"])`.
+- `scripts/make_sample_grid.py --ours`: rows alternate ours / CIFAR-10-C for the 4 seen corruptions, columns clean + severities 1-5. Writes `results/figures/extra_our_corruptions.png`.
+- `tests/test_corruptions.py`, `tests/test_transforms.py`: synthetic images only.
+
+### How to run it
+    .venv/bin/python -m scripts.make_sample_grid --ours            # [--index 23] [--out PATH]
+    .venv/bin/ruff format --check . && .venv/bin/ruff check . && .venv/bin/pytest -q
+    .venv/bin/python -c "from src.config import load_config as l; from src.data.transforms import build_train_transform as b; c = l('configs/cnn_augmix.yaml', seed=0); print(b(c['strategy'], c['strategy_params']))"
+
+### Verified (with output)
+- Lint/tests: `ruff format --check .` -> `71 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `150 passed in 5.22s` (real 0m6.46s, CPU).
+- Leakage: `grep -rniE "cifar10c|CIFAR-10-C|\.npy" src/data/transforms.py src/data/corruptions.py src/data/cifar10.py src/train.py src/models/` -> no matches (exit 1). `python -c "import sys, src.data.transforms, src.data.corruptions; print([m for m in sys.modules if 'cifar10c' in m])"` -> `[]`.
+- Installed torchvision 0.29.2 supports `all_ops` (`inspect.signature(AugMix.__init__)`).
+- Pipelines (printed): augmix -> `RandomCrop(size=(32, 32), padding=4)`, `RandomHorizontalFlip(p=0.5)`, `AugMix(severity=3, mixture_width=3, chain_depth=-1, alpha=1.0, all_ops=False, interpolation=InterpolationMode.BILINEAR, fill=None)`, `ToTensor()`, `Normalize(...)`; corruption_aware -> crop, flip, `RandomSeenCorruption(p=0.5, corruptions=['gaussian_noise', 'defocus_blur', 'contrast', 'jpeg_compression'], severities=[1, 2, 3, 4, 5])`, `ToTensor()`, `Normalize(...)`. Normalize holds the values of `splits/cifar10_stats.json`.
+- `apply_corruption(img, "fog", 1, rng)` -> `unsupported corruption 'fog'; allowed: gaussian_noise, defocus_blur, contrast, jpeg_compression`.
+- Wiring on the real data, `configs/cnn_corruption_aware.yaml`: train `['RandomCrop', 'RandomHorizontalFlip', 'RandomSeenCorruption', 'ToTensor', 'Normalize']`, val `['ToTensor', 'Normalize']`, item `torch.Size([3, 32, 32]) torch.float32`.
+- Real `make_loaders` with `num_workers=2`, S2 and S3 configs -> `torch.Size([128, 3, 32, 32])`, no hang.
+- Severity order, mean abs pixel difference on 200 training images, s1..s5: gaussian_noise 8.01 11.90 15.76 17.66 19.56 | defocus_blur 1.42 3.45 5.21 6.78 9.69 | contrast 10.63 21.26 25.51 29.76 36.14 | jpeg_compression 5.39 6.72 7.16 7.63 8.25 -> strictly increasing for all 4.
+- `p` on the first 2,000 training-split images, fraction changed: `p=0` -> 0.0, `p=0.5` -> 0.503, `p=1` -> 1.0.
+- `make_sample_grid` default mode unchanged: `cmp` of a new fig7 PNG with the committed one -> same.
+- The tests catch broken code (scratch copy, one change at a time): removing the seed-change check -> 2 failed; `p` ignored -> 2 failed; constant seed -> 4 failed; every severity using s1 noise -> 1 failed.
+- Comparison grid opened and inspected. gaussian_noise: same kind and strength; the pixels differ because the noise is random. defocus_blur and contrast: look the same as CIFAR-10-C at every severity. jpeg_compression: same blockiness and colour bleeding with the same growth, but the CIFAR-10-C row has visibly stronger colour artefacts on this image, most at severity 1 (see Known issues).
+
+### Numbers produced
+Mean abs pixel difference (0-255), severities 1..5 [real]. Ours: first 1,000 images of `train_indices`. CIFAR-10-C: first 1,000 test images. Source: scratch script output, not stored in the repo; `default_rng(0)` for ours.
+
+| Corruption | Ours (train) | CIFAR-10-C (test) |
+|---|---|---|
+| gaussian_noise | 7.99 11.89 15.74 17.64 19.52 | 8.00 11.91 15.75 17.64 19.52 |
+| defocus_blur | 1.41 3.41 5.14 6.70 9.57 | 1.38 3.32 5.00 6.51 9.28 |
+| contrast | 10.73 21.46 25.76 30.05 36.49 | 10.68 21.35 25.62 29.89 36.30 |
+| jpeg_compression | 5.38 6.66 7.10 7.56 8.18 | 5.42 6.68 7.11 7.57 8.18 |
+
+Fidelity check (scratch script, not asked for by BUILD): ours applied to the same 1,000 test images and compared pixel by pixel with CIFAR-10-C [real]. No parameter was chosen or changed from this.
+
+| Corruption | Result across severities 1-5 |
+|---|---|
+| defocus_blur | identical images 1.0000 at every severity |
+| contrast | identical images 0.9950, max difference 1 level |
+| jpeg_compression | identical images 0.014-0.019, identical values 0.52-0.67, max difference 82-99 levels; mean strength ours 5.32 6.59 7.02 7.48 8.09 vs 5.42 6.68 7.11 7.57 8.18 |
+
+Time for 1,000 training images, whole pipeline including ToTensor + Normalize, 1 CPU thread, median of 3, this machine (not Colab) [real]:
+
+| Strategy | s / 1,000 images | ms / image |
+|---|---|---|
+| none | 0.137 | 0.137 |
+| standard | 0.222 | 0.222 |
+| augmix | 1.789 | 1.789 |
+| corruption_aware | 0.330 | 0.330 |
+
+`apply_corruption` alone at severity 3, s / 1,000 images: gaussian_noise 0.091, defocus_blur 0.286, contrast 0.042, jpeg_compression 0.288.
+
+### Changed from earlier phases
+- `src/data/cifar10.py`: removed `phase01_default_train_transform` and switched the default to `build_train_transform`, as the Phase 01 hook asked.
+- `scripts/make_sample_grid.py`: added `--ours`; `--out` now defaults by mode (in scope for this phase).
+
+### Not done / deferred
+- Models, training loop, JSD loss: out of scope.
+- `results/figures/extra_our_corruptions.png` is PNG only (BUILD names only the PNG).
+
+### Known issues
+- **Our jpeg_compression does not reproduce CIFAR-10-C pixel for pixel, although the code path matches the reference.** Mean strength agrees to about 0.1 pixel levels. On 1,000 test images at severity 1, Pillow's default (4:2:0) is the closest setting tried: mean difference 1.36, against 3.56 for 4:4:4 and 3.02 for 4:2:2; `optimize` and `progressive` change nothing. The gap is mostly colour: mean luma difference 0.18, mean RGB difference 1.36. Likely cause: different JPEG library versions (here Pillow uses libjpeg-turbo, `jpg` 6.2) handling chroma differently; this is NOT confirmed. Impact: S3's JPEG training images have somewhat milder colour artefacts than the benchmark's on some images, which could slightly understate S3 on `jpeg_compression`. Not tuned, because RULES section 3 forbids choosing parameters from CIFAR-10-C.
+- Contrast: 5 of the 1,000 test images differ from CIFAR-10-C by 1 level at most. Cause not investigated; too small to matter.
+- `RandomSeenCorruption`'s generator state lives in the DataLoader workers, so it cannot go into `checkpoint_last.pt`'s `rng_states` from the main process. Phase 05 should expect that a resumed S3 run draws a different corruption stream from an uninterrupted one.
+- `src/config.py` accepts any of the 15 standard names in `corruption_aware.corruptions`. A non-seen name fails when `RandomSeenCorruption` is built, not when the config loads.
+- D5 does not state AugMix's interpolation; the torchvision default (bilinear) is used.
+
+### Decisions used
+- D5: S0-S3 pipelines; AugMix severity 3, mixture_width 3, chain_depth -1, alpha 1.0, all_ops False, no JSD; S3 p 0.5, uniform corruption and severity 1-5.
+- D6: seen list gaussian_noise, defocus_blur, contrast, jpeg_compression; formulas and severity parameters from the Hendrycks & Dietterich reference code.
+- D2: Normalize from `splits/cifar10_stats.json`.
+
+### Ideas for later
+- none
