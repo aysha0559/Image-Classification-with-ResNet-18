@@ -1,4 +1,4 @@
-"""Seeding, device selection, git info, atomic saving, parameter count, env paths, a timer."""
+"""Seeding, RNG states, device, git info, atomic saving, parameter count, env paths, a timer."""
 
 from __future__ import annotations
 
@@ -38,6 +38,27 @@ def make_generator(seed: int) -> torch.Generator:
     g = torch.Generator()
     g.manual_seed(seed)
     return g
+
+
+def get_rng_states(generator: torch.Generator) -> dict[str, Any]:
+    """Return the Python, NumPy, torch CPU and CUDA RNG states and the state of `generator`."""
+    return {
+        "python": random.getstate(),
+        "numpy": np.random.get_state(),
+        "torch": torch.get_rng_state(),
+        "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        "dataloader": generator.get_state(),
+    }
+
+
+def set_rng_states(states: dict[str, Any], generator: torch.Generator) -> None:
+    """Restore states from `get_rng_states`. All tensors in `states` must be on the CPU."""
+    random.setstate(states["python"])
+    np.random.set_state(states["numpy"])
+    torch.set_rng_state(states["torch"])
+    if states["cuda"] is not None and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(states["cuda"])
+    generator.set_state(states["dataloader"])
 
 
 def get_device(pref: str = "auto") -> torch.device:

@@ -321,3 +321,96 @@ Time for 1,000 training images, whole pipeline including ToTensor + Normalize, 1
 
 ### Ideas for later
 - none
+
+## Phase 05: training-loop  (2026-11-04, branch phase-05-training-loop, commit: the one titled "phase 05: resumable config-driven training loop")
+
+### Built
+- `src/train.py`: `python -m src.train` per C5; `train(cfg, resume=True)` is the callable form. SGD from config, `CosineAnnealingLR(T_max=epochs)` stepped per epoch, cross-entropy, AMP only on CUDA with `amp: true`. Writes the C6 run folder. `lr` in `train_log.csv` is the rate used during that epoch. `epoch_time_s` covers training + validation, not the checkpoint write.
+- Checkpoint after every epoch via `atomic_save`, with RNG states for Python, NumPy, torch CPU, torch CUDA (if available) and the DataLoader generator. It loads on the CPU, because RNG states must stay there.
+- Resume: restores model, optimizer, scheduler, scaler, then the RNG states, before the first iterator exists. A changed training key is refused before anything in the run folder changes; the message names the key (nested keys as `optimizer.lr`). `run_id`, `device` and `num_workers` may change between sessions (`NON_TRAINING_KEYS`).
+- Log rows after the checkpointed epoch are dropped on resume: a row is written before its checkpoint, so a crash between them would otherwise repeat an epoch. Rows are fsynced.
+- `STOP_AFTER_EPOCHS`, documented in the module docstring: an absolute epoch number; exit 0, `status` stays `running`.
+- `train_time_s` is the sum of `epoch_time_s` over the log, so it counts every session. A resumed run keeps its first `started_at`.
+- Divergence: the loss is checked on every batch; NaN or inf raises `DivergenceError`, `status: failed`.
+- A finished run is skipped, also with `--no-resume`. `--no-resume` on an unfinished run deletes its checkpoint and empties its log.
+- `src/utils.py`: `get_rng_states`, `set_rng_states`.
+- `scripts/registry.py`: `build_registry`; writes `$RESULTS_DIR/runs.csv` (C8), sorted by run id. Reads results from `raw/`, or `smoke/` for `smoke-` runs.
+- `tests/test_train_smoke.py`: 21 test cases on fake data, no download.
+
+### How to run it
+    .venv/bin/python -m src.train --config configs/smoke.yaml --seed 0
+    STOP_AFTER_EPOCHS=2 .venv/bin/python -m src.train --config configs/smoke.yaml --epochs 3 --run-id smoke-b
+    .venv/bin/python -m src.train --config configs/smoke.yaml --epochs 3 --run-id smoke-b    # resumes
+    .venv/bin/python -m scripts.registry
+    .venv/bin/ruff format --check . && .venv/bin/ruff check . && .venv/bin/pytest -q
+
+All checks below used scratch `RUNS_DIR` and `RESULTS_DIR` folders outside the repo.
+
+### Verified (with output)
+All on CPU, real CIFAR-10 unless stated. All numbers are smoke numbers.
+- Lint/tests: `ruff format --check .` -> `75 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `188 passed in 17.59s` (real 0m18.915s, CPU).
+- Step 1, `python -m src.train --config configs/smoke.yaml --seed 0` -> `epoch 1/1 lr 0.10000 train_loss 2.6624 train_acc 0.1113 val_loss 2.3188 val_acc 0.1172 time 1.4s`, exit 0. Folder: `checkpoint_last.pt config_resolved.yaml model_final.pt run_meta.json train_log.csv`; log at `$RESULTS_DIR/smoke/smoke-cnn-standard-s0_train_log.csv`. `run_meta.json` holds exactly the 16 C6 keys (also asserted in tests).
+- Finished run skipped: same command -> `already finished, nothing to do`, exit 0.
+- Step 2, resume equivalence, `--epochs 3`, runs `smoke-a` and `smoke-b` (`STOP_AFTER_EPOCHS=2`, then resumed). First session: exit 0, `"status": "running"`, no `model_final.pt`. Second session: `resuming after epoch 2/3`, then only `epoch 3/3`. Max absolute log difference: lr 0.0, train_loss 0.0, train_acc 0.0, val_loss 0.0, val_acc 0.0. Weights: `allclose True identical True` over 34 tensors.
+
+| Epoch | lr A | lr B | train_loss A | train_loss B | val_loss A | val_loss B | val_acc A | val_acc B |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.1 | 0.1 | 2.6623692512512207 | 2.6623692512512207 | 2.318750739097595 | 2.318750739097595 | 0.1171875 | 0.1171875 |
+| 2 | 0.07500000000000001 | 0.07500000000000001 | 2.3245916962623596 | 2.3245916962623596 | 2.2590643167495728 | 2.2590643167495728 | 0.177734375 | 0.177734375 |
+| 3 | 0.025000000000000015 | 0.025000000000000015 | 2.154705047607422 | 2.154705047607422 | 2.190445840358734 | 2.190445840358734 | 0.203125 | 0.203125 |
+
+- Resume does not replay: `cnn_corruption_aware.yaml`, `num_workers: 2`, `--subset 256 --epochs 3`, traced by a scratch wrapper around `src.train.main` (`train_log.csv` columns unchanged).
+
+| Session | base seed | epoch | shuffle sha256 prefix | first 8 indices |
+|---|---|---|---|---|
+| 1 | 900450186894289455 | 1 | fc5d2c78dc09 | 117 136 193 28 227 75 253 205 |
+| 1 | same iterator | 2 | e23b0780d963 | 94 144 250 40 248 126 96 202 |
+| 2 (resumed) | 6428247394855981926 | 3 | f8d5a7b54eed | 20 49 50 11 252 191 239 13 |
+
+  Control: with the generator restore disabled in a scratch copy, session 2 replays session 1 exactly (base seed 900450186894289455, shuffle fc5d2c78dc09), so this check can fail.
+- Refusal: `STOP_AFTER_EPOCHS=1 ... --epochs 3 --run-id smoke-c`, then `--epochs 5` -> `ValueError: refusing to resume smoke-c: config differs from the checkpoint in epochs: 3 -> 5. Restore the old value or use another --run-id.`, exit 1, `status` still `running`.
+- Step 3: all 8 (model, strategy) combinations exit 0 and end `finished` (table below).
+- NaN guard: `lr: 1000000.0` in a scratch config -> `DivergenceError: training loss is nan at batch 4`, `"status": "failed"`.
+- Failure status: unusable `DATA_DIR` -> `PermissionError`, `"status": "failed"` with the message in `error`.
+- Smoke isolation: `ls results/raw | wc -l` -> `0`.
+- Registry: `python -m scripts.registry` -> `wrote .../runs.csv (4 runs)`; header is the 16 meta columns + `has_results,clean_accuracy`.
+- Leakage: `grep -nE "train=False|get_test_dataset|cifar10c" src/train.py` -> no matches (exit 1); importing `src.train` loads no `cifar10c` module -> `[]`.
+- The tests catch broken code (scratch copy, one change at a time, `pytest -q tests/test_train_smoke.py`): no RNG restore -> 1 failed; generator not restored -> 1 failed; optimizer not restored -> 1 failed; scheduler not restored -> 1 failed; log not trimmed -> 2 failed; smoke logs sent to raw -> 3 failed; no NaN guard -> 1 failed; no `scheduler.step()` -> 1 failed; failed status not set -> 2 failed. The scheduler change first passed all tests, so the resume test now runs 4 epochs with the stop at 2.
+
+### Numbers produced
+Time per epoch, `--subset 256 --epochs 1`, 256 training + 256 validation images, `num_workers: 2`, CPU, this machine, seed 0, 1 run each (source: scratch `run_meta.json` `train_time_s`) [smoke]. These do not predict Colab time; Phase 07 measures that.
+
+| Strategy | simple_cnn (s) | resnet18 (s) |
+|---|---|---|
+| none | 0.88 | 10.26 |
+| standard | 0.93 | 10.99 |
+| augmix | 1.01 | 11.16 |
+| corruption_aware | 0.93 | 10.97 |
+
+Run folder size, resnet18 (`du -sh`) [smoke]: `checkpoint_last.pt` 86M, `model_final.pt` 43M.
+
+### Changed from earlier phases
+- `src/utils.py`: added `get_rng_states` and `set_rng_states`, because C1 places checkpoint io there. Module docstring updated.
+- `scripts/registry.py`: was a Phase 08 stub docstring; filled now because this BUILD asks for it.
+
+### Not done / deferred
+- CUDA paths never ran: this machine has no CUDA. AMP, `GradScaler`, CUDA RNG restore and `device_name` on a GPU are unverified -> check in Phase 07.
+- Real training -> Phase 07. Multi-run orchestration -> Phase 08.
+
+### Known issues
+- **`run_meta.json` gets one key outside C6 when a run fails.** BUILD asks for `status: failed` "with the error message"; C6 lists no key for it, so a failed run has an `error` key. Finished runs have exactly the C6 keys, and the next session of the run removes `error`. `registry.py` ignores it. Suggested fix if the human agrees: add `error` to C6 as "failed runs only".
+- **A smoke run can share its run id with an earlier one.** `configs/smoke.yaml` and `configs/cnn_standard.yaml --subset N` both give `smoke-cnn-standard-s0` at seed 0. If the first is finished, the second exits 0 without training, as BUILD requires, and prints `WARNING: ... was NOT retrained`. VALIDATE V5 after V3 hits this: use another `RUNS_DIR` for V5, or that combination does not really train.
+- An unfinished run with different settings is refused (exit 1); only finished runs warn and exit 0.
+- `--epochs` without `--subset` keeps a real run id, and its log goes to `results/raw/`. C5 ties smoke to `--subset` only. Such a cut-short run is not a real result (RULES section 4); do not use `--epochs` alone below the frozen value.
+- With `num_workers > 0`, a resumed epoch's shuffle differs from the uninterrupted run's (`f8d5a7b54eed` vs `5b2957f464c8` for epoch 3), because the new session draws a base seed from the generator first. This is within the human's accepted difference (DECISIONS change log, 2026-11-04). A pilot or real run that gets interrupted must be noted in the run log.
+- A resume across commits prints a warning, and `run_meta.json` records only the last session's `git_commit`.
+- A process killed during `atomic_save` leaves a hidden `.checkpoint_last.pt.*.tmp` of up to 86M for ResNet-18; nothing removes it. Delete it by hand if Drive space runs short.
+- A row missing from `train_log.csv` for a checkpointed epoch (possible if Drive syncs the files out of order) prints a warning and training continues.
+
+### Decisions used
+- D3: final-epoch model saved; no best-checkpoint logic; validation is monitoring only.
+- D4: SGD momentum 0.9, Nesterov, weight decay 5e-4, lr 0.1, cosine to 0 over all epochs, no warm-up, AMP on CUDA, batch size from config, seeding through `set_seed`.
+- DECISIONS change log 2026-11-04: resumed runs need not match bit for bit with `num_workers > 0` or `corruption_aware`, but must not replay.
+
+### Ideas for later
+- none
