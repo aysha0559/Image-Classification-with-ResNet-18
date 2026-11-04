@@ -1,5 +1,5 @@
 # torch + torchvision for local (CPU) runs. Do NOT install these on Colab: use Colab's preinstalled
 # versions (DECISIONS D9). The CPU index keeps the local install small; the pins also resolve on PyPI.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.14.1
-torchvision==0.29.2
+torch==2.11.0
+torchvision==0.26.0

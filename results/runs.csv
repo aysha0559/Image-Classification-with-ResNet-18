@@ -1,0 +1,2 @@
+run_id,model,strategy,seed,epochs,git_commit,git_dirty,torch_version,torchvision_version,python_version,device_name,n_params,started_at,finished_at,train_time_s,status,has_results,clean_accuracy
+cnn-standard-s0,simple_cnn,standard,0,30,004edc3c3324ebd5174b4a1819d9bb6858885511,False,2.11.0+cu130,0.26.0+cu130,3.13.16,Tesla T4,666858,2026-11-04T13:13:22+00:00,2026-11-04T13:27:11+00:00,619.9993562280001,finished,True,0.8404
