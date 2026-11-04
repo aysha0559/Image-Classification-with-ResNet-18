@@ -30,6 +30,12 @@ One training entry point, `python -m src.train`, that trains any (model, strateg
 ## Resume equivalence (the key check)
 Run A: 3 epochs uninterrupted. Run B: same config and seed (different `--run-id`), started with the environment variable `STOP_AFTER_EPOCHS=2` so it exits cleanly after epoch 2 (as a Colab disconnect would leave it), then started again without the variable so it resumes and finishes epoch 3. On CPU with `num_workers: 0`, the `train_log.csv` loss/accuracy columns and the final weights of A and B must match (losses within 1e-6; weights `torch.allclose(atol=1e-6)`). Document `STOP_AFTER_EPOCHS` in the module docstring; it must change nothing except when the process exits. Note: `--epochs 2` is not a valid way to simulate this, because it changes the cosine schedule.
 
+## Resume must not replay (DECISIONS change log, 2026-11-04)
+The exact match above applies to `configs/smoke.yaml` (`standard`, `num_workers: 0`) only. With `num_workers > 0`, augmentation randomness lives in the workers (crop, flip, AugMix, S3). With any `num_workers`, `RandomSeenCorruption`'s generator is not checkpointed. Those runs do not have to match bit for bit, but a resumed run must continue the random stream, not restart it:
+- Restore the DataLoader generator's state from `rng_states` **before** the first iterator is created, because that iterator draws the shuffle order and worker base seed from it. Never leave the `make_generator(cfg["seed"])` state in place on resume.
+- Add a check with `corruption_aware`, `num_workers: 2`, subset 256, `--epochs 3`: stop with `STOP_AFTER_EPOCHS=2`, resume, and show that the resumed epoch's shuffle order differs from epoch 1's and that its base seed differs from the first session's. Log both to scratch output; do not add columns to `train_log.csv`.
+- Do not try to prove the 0.5-point figure here; a smoke run cannot show it. If a pilot or real run is interrupted later, note it in the run log so its result can be read with that in mind.
+
 ## Out of scope
 Evaluation on the test set or CIFAR-10-C (Phase 06), real long runs (Phase 07), multi-run orchestration (Phase 08).
 
@@ -43,6 +49,7 @@ Evaluation on the test set or CIFAR-10-C (Phase 06), real long runs (Phase 07), 
 - [ ] All 8 (model, strategy) combinations train 1 smoke epoch on CPU without error.
 - [ ] Run folder matches C6 exactly (file names, `train_log.csv` columns, `run_meta.json` keys).
 - [ ] Resume equivalence holds on CPU.
+- [ ] A resumed run does not replay the first session's shuffle order or worker seed (`corruption_aware`, `num_workers: 2`).
 - [ ] Resuming with a changed training key is refused with a clear message.
 - [ ] A finished run is skipped on re-run.
 - [ ] Checkpoint writes are atomic (temp file + rename).

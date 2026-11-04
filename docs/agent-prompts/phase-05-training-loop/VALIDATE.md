@@ -26,5 +26,6 @@ You are the independent validator for Phase 05. Re-run everything on CPU. Do not
 | V16 | No test or CIFAR-10-C use in training | Must | grep `src/train.py` for `train=False`, `get_test_dataset`, `cifar10c`: empty |
 | V17 | Registry | Should | `RUNS_DIR=/tmp/val05/runs python -m scripts.registry` writes a CSV with the C8 columns (point `RESULTS_DIR` at `/tmp`) |
 | V18 | Per-epoch CPU times in `PROGRESS.md` are plausible | Should | compare with your V5 times |
+| V19 | Resume does not replay the random stream | Must | read code: the DataLoader generator state is restored before the first iterator is created. Run `corruption_aware`, `num_workers: 2`, subset 256, `--epochs 3` with `STOP_AFTER_EPOCHS=2`, then resume; the resumed epoch's shuffle order and worker base seed differ from the first session's |
 
 Write `validation/phase-05.md`; give me the one-line verdict.
