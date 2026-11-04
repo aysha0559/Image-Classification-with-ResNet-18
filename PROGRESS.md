@@ -402,6 +402,11 @@ Run folder size, resnet18 (`du -sh`) [smoke]: `checkpoint_last.pt` 86M, `model_f
 ### Not done / deferred
 - CUDA paths never ran: this machine has no CUDA. AMP, `GradScaler`, CUDA RNG restore and `device_name` on a GPU are unverified -> check in Phase 07.
 - Real training -> Phase 07. Multi-run orchestration -> Phase 08.
+- From `validation/phase-05.md`, to do at the start of Phase 07 (agreed with the human before the merge):
+  - `src/train.py` `scaler.load_state_dict(checkpoint["scaler"])`: skip an empty scaler state, and add a test. A checkpoint saved on CPU has one, and loading it into an enabled scaler raises `RuntimeError`, so a run started without a GPU would probably fail on every resume on a GPU.
+  - Confirm `device_name` in `run_meta.json` shows a GPU before a real run continues; `device: auto` falls back to the CPU silently.
+  - CONTRACTS C8: say that `error` is not a registry column.
+  - `train_time_s` counts only finished epochs, so do not read it as total GPU time for an interrupted run.
 
 ### Known issues
 - **A smoke run can share its run id with an earlier one.** `configs/smoke.yaml` and `configs/cnn_standard.yaml --subset N` both give `smoke-cnn-standard-s0` at seed 0. If the first is finished, the second exits 0 without training, as BUILD requires, and prints `WARNING: ... was NOT retrained`. VALIDATE V5 now uses its own `RUNS_DIR` for this reason.
