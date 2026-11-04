@@ -423,3 +423,104 @@ Run folder size, resnet18 (`du -sh`) [smoke]: `checkpoint_last.pt` 86M, `model_f
 
 ### Ideas for later
 - none
+
+## Phase 06: evaluation  (2026-11-04, branch phase-06-evaluation, commit: the one titled "phase 06: metrics and CIFAR-10-C evaluator")
+
+### Built
+- `src/metrics.py`: the C10 functions as pure functions on arrays and DataFrames, all in fractions (mCE 1.0 = same error as the baseline). `macro_f1` is written by hand, so the scikit-learn comparison is a real cross-check.
+  - The table functions read the C7 columns `corruption`, `severity`, `accuracy`. `df_run` is one run; `df_baseline` is already the seed-mean table.
+  - A missing condition, a repeated condition (for example several seeds passed at once), a missing column, an accuracy that is NaN or outside [0, 1], or a zero baseline denominator raises `ValueError`. `clean` and extra rows are ignored by the CE sums, so extras cannot enter mCE (D7). `relative_mce` also needs the clean row.
+  - Also there: `confusion_matrix(y_true, y_pred, num_classes=10)`, used by the evaluator.
+- `src/evaluate.py`: `python -m src.evaluate` per C5; `evaluate(run_dir, subset, include_extra, batch_size, force)` is the callable form.
+  - Refuses, before any evaluation: a run that is not `finished`, a folder with no metadata, a `model_final.pt` from another run, and existing results (either file) without `--force`.
+  - Writes all three C7 files at the end of the pass. The confusion file and log copy come first and the CSV last, each CSV and npz via a temp file and rename, so a CSV means the evaluation finished.
+  - `--subset N` adds `smoke-` once; any `smoke-` run id goes to `$RESULTS_DIR/smoke/`, with or without `--subset`.
+  - The DataLoader uses the run's `num_workers` from its stored config. Device and AMP also come from there (AMP only on CUDA).
+- `tests/test_metrics.py`, `tests/test_evaluate_smoke.py`: 74 test cases on hand-computed tables, a tiny fake model and a fake CIFAR-10-C folder. No download.
+
+### How to run it
+    .venv/bin/python -m src.train --config configs/smoke.yaml --seed 0
+    .venv/bin/python -m src.evaluate --run-dir ./runs/smoke-cnn-standard-s0 --subset 500
+    .venv/bin/ruff format --check . && .venv/bin/ruff check . && .venv/bin/pytest -q
+
+All checks below used scratch `RUNS_DIR` and `RESULTS_DIR` folders outside the repo.
+
+### Verified (with output)
+All on CPU. All accuracies are smoke numbers: the model had 1 epoch on 512 images.
+- Lint/tests: `ruff format --check .` -> `78 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `264 passed in 27.36s` (real 0m28.690s, CPU).
+- Hand-computed cases (written out in `tests/test_metrics.py`): accuracy 0.75; macro-F1 11/15 over labels [0, 1] and 22/150 over the 10 classes; degradation 0.3 and 1/3; toy tables CE {a: 0.6, b: 0.5}, mCE 0.55, relative mCE 7/12.
+- `mce(base, base) == 1.0` and `relative_mce(base, base) == 1.0`, exact equality, on all 76 conditions.
+- Missing conditions: a whole corruption, a whole severity and one condition, on either table, for all 3 functions -> `ValueError`.
+- `macro_f1` vs `sklearn.metrics.f1_score(average="macro", labels=range(10), zero_division=0)`: 20 random pairs of length 1,000, one with a class never predicted -> equal within 1e-12.
+- Step 2, `python -m src.train --config configs/smoke.yaml --seed 0`, then `python -m src.evaluate --run-dir $RUNS_DIR/smoke-cnn-standard-s0 --subset 500`:
+
+      smoke-cnn-standard-s0: 76 conditions, 500 images each
+      clean accuracy          0.0960
+      mean corrupted accuracy 0.0969 (over 75 conditions)
+      worst conditions:
+        frost s3: 0.0820
+        brightness s5: 0.0820
+        snow s5: 0.0840
+
+- First rows of that CSV (`head`, last two columns left out; `git_commit` = `5c96ebd...`, the commit before this phase, because the code was uncommitted):
+
+      run_id,model,strategy,seed,corruption,family,group,severity,n_images,accuracy,macro_f1,loss
+      smoke-cnn-standard-s0,simple_cnn,standard,0,clean,clean,clean,0,500,0.096,0.041743941327731154,2.33381494140625
+      smoke-cnn-standard-s0,simple_cnn,standard,0,gaussian_noise,noise,seen,1,500,0.092,0.03734136960539118,2.33472802734375
+      smoke-cnn-standard-s0,simple_cnn,standard,0,gaussian_noise,noise,seen,2,500,0.092,0.03816108449297106,2.3356103515625
+      smoke-cnn-standard-s0,simple_cnn,standard,0,gaussian_noise,noise,seen,3,500,0.086,0.03227378293384894,2.336406494140625
+      smoke-cnn-standard-s0,simple_cnn,standard,0,gaussian_noise,noise,seen,4,500,0.09,0.036592229364566055,2.337005126953125
+      smoke-cnn-standard-s0,simple_cnn,standard,0,gaussian_noise,noise,seen,5,500,0.09,0.03401585090459174,2.337259033203125
+      smoke-cnn-standard-s0,simple_cnn,standard,0,shot_noise,noise,unseen,1,500,0.094,0.03847356333837883,2.33453515625
+      smoke-cnn-standard-s0,simple_cnn,standard,0,shot_noise,noise,unseen,2,500,0.092,0.03728077710605791,2.33511181640625
+      smoke-cnn-standard-s0,simple_cnn,standard,0,shot_noise,noise,unseen,3,500,0.088,0.03580323935843721,2.336005126953125
+      smoke-cnn-standard-s0,simple_cnn,standard,0,shot_noise,noise,unseen,4,500,0.094,0.03890588032864455,2.33648388671875
+
+- Files: `smoke/` holds the `.csv` (77 lines: header + 76), `_confusion.npz` and `_train_log.csv`. `ls results/raw | wc -l` -> `0` in the repo.
+- Independent recomputation (scratch script, real data): `rows 76 keys 76 all sum 500 True`; `max |acc csv - matrix| 0.0`; macro-F1 from each matrix through scikit-learn differs by at most 9.7e-17; a direct forward pass over `load_cifar10c("fog", 5)[:500]` -> `fog s5 direct 0.108 csv 0.108 equal True`.
+- Refusals: a second evaluate -> `FileExistsError: refusing to overwrite [...]; use --force`; `status: running` -> `ValueError: refusing to evaluate ...: status is 'running'`.
+- Extras: `--subset 50 --include-extra` -> `96 conditions`, summary still `(over 75 conditions)`; the 4 extras carry `family = extra`, `group = unseen`. Without the flag: no extras (test).
+- Full pass, no `--subset`: `76 conditions, 10000 images each`, CSV 77 lines (timing below).
+- Registry: `python -m scripts.registry` -> `has_results` True, `clean_accuracy` 0.096 for the smoke run.
+- Leakage: `src/train.py` has no `train=False` or `cifar10c`; `tests/test_no_leakage.py` passes with `src/evaluate.py` as an allowed importer.
+- The tests catch broken code (scratch copy, one change at a time, the two new test files; unchanged baseline passes first): 20 changes, all fail at least 1 test. They cover `model.eval()` and `no_grad` removed, clean severity 1, extras on by default, wrong groups, smoke to raw, `--force` and status checks off, subset ignored or taking the last images, every condition reading clean data, transposed confusion matrix, wrong macro-F1, CE as a mean of ratios, mCE as a sum of sums, rCE without the clean error, missing and repeated conditions not raised, error = accuracy, wrong relative degradation. On the first pass, `no_grad` removed and the transposed matrix survived, so 2 tests were added.
+
+### Numbers produced
+Evaluation time on CPU, this machine (no CUDA), 4 torch threads, batch size 512, not Colab [smoke]. Source: scratch timing script calling `score_condition`, 3 repeats on fog severity 3 with 10,000 images; the `time` output for the full pass; neither is stored in the repo.
+
+| Model | `num_workers` | One condition, s (3 repeats) | Median | 76 conditions |
+|---|---|---|---|---|
+| simple_cnn | 2 | 10.23 10.11 10.87 | 10.23 | estimated 777 s (about 13 min) |
+| simple_cnn | 0 | 12.14 11.33 12.00 | 12.00 | measured 860 s (14m20s; estimate 912 s) |
+| resnet18 | 2 | 105.71 106.30 109.64 | 106.30 | estimated 8,079 s (about 2.2 h) |
+
+- T4 time: UNKNOWN; this machine has no CUDA. The overview estimates 3-10 minutes per model. Phase 07 measures it.
+- Full 10,000-image smoke pass: clean 0.1182, mean corrupted 0.1142 [smoke].
+
+### Changed from earlier phases
+- `src/metrics.py`, `src/evaluate.py`: were Phase 00 stubs. No other earlier file changed.
+
+### Not done / deferred
+- CUDA paths never ran here: AMP under `torch.autocast`, `pin_memory` -> check in Phase 07.
+- Seed aggregation and building the seed-mean baseline table -> Phase 09. Average `accuracy` per (corruption, severity, including clean) over the 3 Simple CNN + S1 seeds, one row per condition.
+- Mean corrupted accuracy (D8) is computed only for the printed summary here; the stored table comes in Phase 09.
+
+### Known issues
+- **`macro_f1` has an optional `labels` argument and the metrics module a `confusion_matrix` function that C10 does not list.** BUILD's example passes `labels=[0, 1]`, and the default stays the 10 classes, so C10's two-argument call works unchanged.
+- **BUILD asks for a 2 x 2 toy CE table, and also says the functions must raise on fewer than 15 corruptions and 5 severities.** C10's signatures are kept, so the toy tests shrink the module's `CORRUPTIONS` and `SEVERITIES` with `monkeypatch`, as `tests/test_cifar10c.py` does with `N_PER_SEVERITY`. Validators building toy tables outside a test need all 15 x 5.
+- **C7 has no `group` for the extras.** D6 does not list them, and C7 allows only `clean`, `seen`, `unseen`. They are labelled `unseen` because training never uses them. This matters only with `--include-extra`, which is off by default.
+- `git_commit` in the CSV is HEAD and does not show uncommitted changes. Evaluate real runs from a clean tree.
+- An interrupted evaluation keeps nothing: results are written only after all conditions. A leftover hidden `.tmp` file in the results folder can be deleted and is replaced by the next run.
+- A run whose stored config says `device: cuda` cannot be evaluated without a GPU. The configs use `auto`, so this applies only to a hand-edited config.
+- `--subset` on a real run writes to `smoke/` under the same `smoke-` id a smoke training run may use, so `--force` is needed if both are evaluated (same kind of id sharing as the Phase 05 known issue).
+- The train log copy is overwritten on every evaluation; it is a copy of the run folder's log, so this loses nothing.
+
+### Decisions used
+- D3: `model_final.pt` (the final-epoch model) is what gets evaluated.
+- D2: the eval transform, for clean and CIFAR-10-C.
+- D6: `group` `seen` for the 4 seen corruptions, `unseen` for the other 11.
+- D7: clean + 15 x 5 = 76 conditions; extras only with `--include-extra`, never in mCE or the main averages.
+- D8: fractions; error = 1 - accuracy; degradation, CE, mCE and relative mCE formulas; seed-mean baseline; mean corrupted accuracy over the 75 conditions.
+
+### Ideas for later
+- none
