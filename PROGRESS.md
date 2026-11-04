@@ -16,7 +16,8 @@ One entry per phase, appended at the end of each build phase
 - `tests/test_constants.py`, `tests/test_config.py`, `tests/test_utils.py`.
 - `notebooks/00_colab_setup.ipynb`: mount Drive, clone/pull `REPO_URL` (set to the GitHub repo) at `BRANCH`, `pip install -r requirements.txt`, set `DATA_DIR`/`RUNS_DIR`, print python/torch/torchvision/GPU.
 - `CLAUDE.md`, `README.md` (placeholder), `LICENSE` (MIT, holder "cifar10-robustness-study contributors": the human asked to stay anonymous), this file.
-- GitHub: public repo https://github.com/aysha0559/Image-Classification-with-ResNet-18 created at the human's request; `main` and `phase-00-setup` pushed. Not merged (merge waits for validation).
+- GitHub: a public repo (since replaced, see below) was created at the human's request; `main` and `phase-00-setup` pushed. Not merged (merge waits for validation).
+- GitHub (changed 2026-11-04, at the human's request): the remote is now https://github.com/aysha0559/Image-Classification-with-ResNet-18; `REPO_URL` in `notebooks/00_colab_setup.ipynb` points there.
 
 ### How to run it
     # Python 3.12 was used (this machine only had 3.14; 3.12.16 was fetched with `uv python install 3.12`)
