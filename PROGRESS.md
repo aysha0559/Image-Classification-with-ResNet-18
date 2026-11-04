@@ -598,3 +598,63 @@ All in `results/pilot_report.md`, with sources [real, except the ResNet-18 evalu
 ### Phase 07 addendum (2026-11-04, after validation PASS)
 - `results/pilot_logs/`: added at the human's approval, with C1 updated first. It holds the 2 console logs, `run_meta.json` of the pilot and the 5 timing runs, and the timing runs' train logs, so `results/pilot_report.md` traces to files in the repo. They are the files downloaded from Drive, unchanged.
 - `results/pilot_report.md`: sources point there, and the disconnect section now says 2 tracebacks, as `validation/phase-07.md` noted. No number changed.
+
+## Phase 08: experiment matrix, orchestration only  (2026-11-04, branch phase-08-experiment-matrix, commit: the one titled "phase 08: matrix orchestration")
+
+**The matrix has not run.** This entry covers the tooling. The human starts the Colab sessions, and the final entry with the registry table comes after them. None of the "Done when" items that need results is met.
+
+### Built
+- `scripts/run_all.sh`: C5's loop. Skips evaluated runs, resumes unfinished ones, evaluates finished ones, stops on budget, prints the registry and plan at the end. Stops the whole matrix on any failure (exit 1), because the same fault would hit the next runs.
+- `scripts/plan.py`: the run table and remaining GPU hours; also what `run_all.sh` asks before each step (`--run-ids`, `--next-step`). Reads epoch times from finished runs' logs, else from the tables in `results/pilot_report.md`. It imports no torch, so a call takes about 0.1 s.
+- `scripts/collect_results.py`: `--from PATH`. Checks every evaluated run against C7, the confusion matrices against the CSV, the train log and metadata against the configs (D4). Any problem or differing duplicate lists all problems and copies nothing.
+- `notebooks/run_on_colab.ipynb`: `STAGE = "matrix"` (now the default), `SESSION_MINUTES = 180`, `BRANCH = "main"`. The single-run stages still work the same way.
+- `results/RUNLOG.md`: header only, no sessions yet.
+- `tests/test_matrix.py`: 52 cases. Runs the real `run_all.sh` with a fake interpreter and clock; the C7 check also runs on the real pilot files.
+
+### How to run it
+    # Colab, after this branch is merged to main and pushed; repeat until done
+    https://colab.research.google.com/github/aysha0559/Image-Classification-with-ResNet-18/blob/main/notebooks/run_on_colab.ipynb
+    # Here
+    .venv/bin/python -m scripts.plan
+    .venv/bin/python -m scripts.collect_results --from <downloaded results folder>
+
+### Verified (with output)
+- Lint/tests: `ruff format --check .` -> `84 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `317 passed in 56.14s` (real 0m57.518s, CPU).
+- Nothing that affects training or evaluation changed: `git diff --stat main -- src configs requirements.txt` -> empty. `git diff --stat 004edc3 -- src configs` -> `4 files changed, 4 insertions(+), 4 deletions(-)`, the 4 ResNet config comment lines that V4 of Phase 07 already recorded.
+- `python -m scripts.plan` -> `done 1, missing 17 of 18 runs`, `remaining GPU hours: 11.01 (training 10.08, evaluation 0.93; session setup not included)`. That is the report's 11.23 less the pilot's own training and evaluation. Execution order within a seed: cnn standard, cnn corruption_aware, resnet18 standard, resnet18 corruption_aware, cnn augmix, resnet18 augmix.
+- Notebook dry run under IPython: the real notebook, patched only for paths, repo URL, `SESSION_MINUTES`, `--models cnn`, and no pip or GPU check, in a scratch folder on CPU with a fake Drive and a scratch `main` whose CNN configs had 2 epochs. Two sessions, each from a fresh `/content` [smoke]:
+  - Session 1: `cnn-standard-s0: already evaluated, skipping`; `cnn-corruption_aware-s0` trained and evaluated; `session budget reached before cnn-augmix-s0: the next epoch needs about 118 s, -449 s left`; exit 0.
+  - Session 2: both evaluated runs skipped after restoring from the fake Drive; `cnn-augmix-s0` trained and evaluated; `session budget reached before cnn-standard-s1`; exit 0.
+  - Both new runs: `git_dirty: False`, one commit. The repo copy stayed clean (`git status --short | wc -l` -> `0`). Fake Drive: 9 result files, `runs.csv` with 3 rows, CSVs of 77 lines, no `.partial` file.
+- `collect_results` on that fake Drive, real files [smoke]: against the real configs it refused, `2 rows do not count epochs 1..30 once each` and `run_meta epochs is 2`, as it should. With scratch configs matching the runs: `3 evaluated runs checked, 12 files copied`; run again: `0 files copied`.
+- The tests catch broken code (scratch copy, one change at a time, baseline `52 passed`): 12 changes, all fail at least 1 test: order, skip logic, epochs that fit, evaluation budget check, last-epoch estimate, no-progress guard, `--force` rule, final sync, import after problems, duplicate refusal, train log check, confusion check. The no-progress change hung until killed by hand, so `Matrix.run` now has a 30 s timeout.
+
+### Numbers produced
+None for the matrix. All accuracies above are [smoke].
+
+### Changed from earlier phases
+- `notebooks/run_on_colab.ipynb`: see Built; `BRANCH` was deferred here by Phase 07.
+- `docs/agent-prompts/CONTRACTS.md` C2: adds `SESSION_BUDGET_MIN`, `RESULTS_SYNC_DIR` and the Colab matrix `RESULTS_DIR`, approved by the human; `DECISIONS.md` change log has the row.
+- `src/`, `configs/`, `requirements*.txt`: nothing. The budget uses the existing `STOP_AFTER_EPOCHS`, because V7 and V13 treat any change to `src/` after the pilot as a change the pilot would have to answer for.
+
+### Not done / deferred
+- The 17 remaining runs -> the human, on Colab, about 11 GPU hours.
+- Agent steps after each batch, RUNLOG entries, the registry table, commit `phase 08: full experiment matrix results` -> after the sessions.
+- `BUILD` asks that new runs use a commit on `main`, so this orchestration was merged to `main` and pushed before the matrix, with the human's go-ahead. The phase branch stays open for the results.
+- CPU only here: `run_all.sh` has not run on a GPU or on the real Drive.
+
+### Known issues
+- **`RESULTS_DIR` is `/content/results` in matrix mode.** `results/runs.csv` is tracked, so rebuilding it in the clone would mark every later run `git_dirty`, a V7 failure. The notebook also refuses to start if tracked files have changed.
+- **`results/run_folders/{run_id}/` on Drive holds `run_meta.json`, `config_resolved.yaml`, `train_log.csv`.** BUILD does not list it, but `scripts.registry` builds from run folders, so a local rebuild would otherwise drop every run whose folder is only on Drive. `collect_results` copies these to `$RUNS_DIR`.
+- **The budget is an estimate made when a process starts, not after each epoch.** `src.train` cannot be told to stop later without changing `src/`. An overrun is the estimate error times the epochs in that call; `run_all.sh` re-estimates and continues if more fits, which counts as a resume. `epoch_time_s` leaves out checkpoint writes. Evaluation can also overrun: the dry-run overruns (449 s and 617 s) came from CPU evaluation against the 182 s T4 estimate.
+- A budget stop leaves `status: running`, so the next session resumes it. Note those resumes in the run log (Phase 05 known issue).
+- `SESSION_MINUTES = 180` is a setting, not a measured limit. If Colab ends a session earlier, at most one epoch is lost, but the last files may not reach Drive; the next session redoes them.
+- Drive space is unmeasured. Each ResNet-18 epoch replaces a checkpoint of up to 86 MB (Phase 05). Whether replaced files pile up in Drive Trash is UNKNOWN; the notebook prints `df -h` at the start and end of each session, so check it after the first ResNet-18 run.
+- A manual disconnect can leave the old process writing for a while (Phase 07), so the notebook says to wait before starting again. Nothing enforces it.
+- If the log is behind the checkpoint by more than the epochs that fit, `run_all.sh` stops with `made no progress` rather than looping.
+
+### Decisions used
+- D3: `src.evaluate` scores the final-epoch model. D4: epochs from the configs, 30 and 40. D5, D6: default strategies, no S0. D7: 76 conditions. D9: data and runs on Drive.
+
+### Ideas for later
+- none
