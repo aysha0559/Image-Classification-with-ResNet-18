@@ -146,9 +146,9 @@ def load_config(
 ) -> dict:
     """Load and validate a YAML config, apply CLI overrides, and set cfg["run_id"].
 
-    A `subset` (from the YAML or the override) marks the run as smoke, so the run id gets the
-    `smoke-` prefix (CONTRACTS C5). An explicit `run_id` is used as given, plus the smoke prefix
-    if needed.
+    A `subset` (from the YAML or the override), or `epochs` below the YAML's value, marks the run
+    as smoke, so the run id gets the `smoke-` prefix (CONTRACTS C5). An explicit `run_id` is used
+    as given, plus the smoke prefix if needed.
     """
     path = Path(path)
     try:
@@ -157,6 +157,7 @@ def load_config(
         raise ValueError(f"{path}: invalid YAML: {e}") from e
     try:
         validate_config(cfg)
+        config_epochs = cfg["epochs"]
         overrides = {"seed": seed, "epochs": epochs, "subset": subset}
         for key, value in overrides.items():
             if value is not None:
@@ -167,7 +168,7 @@ def load_config(
     except ValueError as e:
         raise ValueError(f"{path}: {e}") from e
 
-    smoke = cfg["subset"] is not None
+    smoke = cfg["subset"] is not None or cfg["epochs"] < config_epochs
     given = cfg.get("run_id")
     if given:
         cfg["run_id"] = given if not smoke or given.startswith("smoke-") else f"smoke-{given}"

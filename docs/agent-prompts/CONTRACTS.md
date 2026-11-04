@@ -166,7 +166,7 @@ bash scripts/run_all.sh [--models ...] [--strategies ...] [--seeds ...]   # skip
 
 `src.train` resumes automatically from `checkpoint_last.pt` if the run folder exists, unless `--no-resume`.
 `src.evaluate` refuses to overwrite an existing results CSV unless `--force`.
-`--subset` always prefixes the run id with `smoke-` and results go to `$RESULTS_DIR/smoke/`, never to `results/raw/`.
+`--subset` always prefixes the run id with `smoke-` and results go to `$RESULTS_DIR/smoke/`, never to `results/raw/`. `--epochs` below the config's value does the same, so a shortened run can never take a real run id. Epoch counts that change for real are edited in the configs, not passed with `--epochs`.
 
 ## C6. Run folder: `$RUNS_DIR/{run_id}/`
 
@@ -176,7 +176,7 @@ bash scripts/run_all.sh [--models ...] [--strategies ...] [--seeds ...]   # skip
 | `train_log.csv` | Columns: `epoch, lr, train_loss, train_acc, val_loss, val_acc, epoch_time_s` (accuracies as fractions; `epoch` starts at 1) |
 | `checkpoint_last.pt` | `{model, optimizer, scheduler, scaler, epoch, rng_states, config}`; written every epoch, atomically (write to temp then rename) |
 | `model_final.pt` | `{state_dict, config, run_id}` after the last epoch |
-| `run_meta.json` | `run_id, model, strategy, seed, epochs, git_commit, git_dirty, torch_version, torchvision_version, python_version, device_name, n_params, started_at, finished_at, train_time_s, status` (`status`: `running`, `finished`, `failed`) |
+| `run_meta.json` | `run_id, model, strategy, seed, epochs, git_commit, git_dirty, torch_version, torchvision_version, python_version, device_name, n_params, started_at, finished_at, train_time_s, status` (`status`: `running`, `finished`, `failed`). Failed runs only: `error`, the error message; removed when a later session of the run starts. |
 
 ## C7. Evaluation output
 
