@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import CIFAR10
 
 from src.constants import NUM_CLASSES
-from src.data.transforms import build_eval_transform
+from src.data.transforms import build_eval_transform, build_train_transform
 from src.utils import REPO_ROOT, env_path, get_device, make_generator, seed_worker
 
 SPLITS_DIR = REPO_ROOT / "splits"
@@ -208,21 +208,12 @@ class TransformedSubset(Dataset):
         return img, label
 
 
-def phase01_default_train_transform() -> Callable:
-    """PHASE 03 HOOK: training transform used when none is passed.
-
-    ToTensor + Normalize only (no augmentation). Phase 03 replaces the default in
-    `get_train_val_datasets` with `build_train_transform(cfg["strategy"], ...)`.
-    """
-    return build_eval_transform()
-
-
 def get_train_val_datasets(
     cfg: dict, train_transform: Callable | None = None, data_dir: str | None = None
 ) -> tuple[Dataset, Dataset]:
     """Return (train, val) datasets from the fixed split; honours `cfg["subset"]` (first N each).
 
-    `train_transform` defaults to `phase01_default_train_transform()` until Phase 03.
+    `train_transform` defaults to the pipeline of `cfg["strategy"]`.
     Validation always uses `build_eval_transform()`.
     """
     data_dir = data_dir or str(env_path("DATA_DIR"))
@@ -231,7 +222,7 @@ def get_train_val_datasets(
         n = cfg["subset"]
         train_idx, val_idx = train_idx[:n], val_idx[:n]
     if train_transform is None:
-        train_transform = phase01_default_train_transform()
+        train_transform = build_train_transform(cfg["strategy"], cfg["strategy_params"])
     base = _load_cifar10(data_dir, train=True)
     return (
         TransformedSubset(base, train_idx, train_transform),
