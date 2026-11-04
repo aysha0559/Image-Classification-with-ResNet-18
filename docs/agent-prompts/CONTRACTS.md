@@ -97,8 +97,10 @@ Not committed: `data/`, `runs/`, `dist/`, `results/smoke/`, `*.pt`, `.env`, `__p
 | `DATA_DIR` | Where CIFAR-10 and `CIFAR-10-C/` live | `./data` |
 | `RUNS_DIR` | Where run folders (checkpoints, logs) are written | `./runs` |
 | `RESULTS_DIR` | Where result CSVs are written | `./results` |
+| `SESSION_BUDGET_MIN` | `scripts/run_all.sh`: whole minutes the call may use | no limit |
+| `RESULTS_SYNC_DIR` | `scripts/run_all.sh`: folder to copy results into after each evaluated run | no copy |
 
-On Colab: `DATA_DIR=/content/data`, `RUNS_DIR=/content/drive/MyDrive/cifar10-robustness/runs`.
+On Colab: `DATA_DIR=/content/data`, `RUNS_DIR=/content/drive/MyDrive/cifar10-robustness/runs`. In matrix mode also `RESULTS_DIR=/content/results`, outside the repo, because rebuilding the tracked `results/runs.csv` in the clone would mark later runs `git_dirty`; and `RESULTS_SYNC_DIR=/content/drive/MyDrive/cifar10-robustness/results`.
 
 ## C3. Names
 
