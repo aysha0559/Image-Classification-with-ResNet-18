@@ -12,7 +12,7 @@ You are the independent validator for Phase 05. Re-run everything on CPU. Do not
 | V2 | Lint, format, tests | Must | `ruff format --check . && ruff check . && pytest -q` |
 | V3 | Smoke run | Must | `python -m src.train --config configs/smoke.yaml --seed 0`; exits 0; prints one line per epoch |
 | V4 | Run folder contract | Must | list `/tmp/val05/runs/smoke-cnn-standard-s0/`; compare file names, `train_log.csv` columns and `run_meta.json` keys with C6 exactly |
-| V5 | All 8 combinations train | Must | for each main config and the 2 S0 configs: `--subset 128 --epochs 1`; all exit 0 |
+| V5 | All 8 combinations train | Must | with a separate `RUNS_DIR=/tmp/val05/runs_v5`, because `cnn_standard.yaml --subset 128` has the same run id as V3 and a finished run is skipped: for each main config and the 2 S0 configs: `--subset 128 --epochs 1`; all exit 0 and each `run_meta.json` shows `finished` with a `train_log.csv` row |
 | V6 | Resume equivalence | Must | run A: smoke config `--epochs 3 --run-id smoke-a`; run B: `STOP_AFTER_EPOCHS=2 ... --epochs 3 --run-id smoke-b`, then the same command without the variable; compare logs (1e-6) and `model_final.pt` weights (`allclose atol 1e-6`) |
 | V7 | Resume really resumed | Must | run B's second invocation starts at epoch 3 (log shows no epoch 1-2 re-run) |
 | V8 | Changed config refused on resume | Must | after `STOP_AFTER_EPOCHS=1`, resume with `--epochs 5`: must refuse and name `epochs` |

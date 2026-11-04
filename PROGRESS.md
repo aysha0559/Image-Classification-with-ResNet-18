@@ -348,7 +348,7 @@ All checks below used scratch `RUNS_DIR` and `RESULTS_DIR` folders outside the r
 
 ### Verified (with output)
 All on CPU, real CIFAR-10 unless stated. All numbers are smoke numbers.
-- Lint/tests: `ruff format --check .` -> `75 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `188 passed in 17.59s` (real 0m18.915s, CPU).
+- Lint/tests: `ruff format --check .` -> `75 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `190 passed in 19.21s` (real 0m20.437s, CPU).
 - Step 1, `python -m src.train --config configs/smoke.yaml --seed 0` -> `epoch 1/1 lr 0.10000 train_loss 2.6624 train_acc 0.1113 val_loss 2.3188 val_acc 0.1172 time 1.4s`, exit 0. Folder: `checkpoint_last.pt config_resolved.yaml model_final.pt run_meta.json train_log.csv`; log at `$RESULTS_DIR/smoke/smoke-cnn-standard-s0_train_log.csv`. `run_meta.json` holds exactly the 16 C6 keys (also asserted in tests).
 - Finished run skipped: same command -> `already finished, nothing to do`, exit 0.
 - Step 2, resume equivalence, `--epochs 3`, runs `smoke-a` and `smoke-b` (`STOP_AFTER_EPOCHS=2`, then resumed). First session: exit 0, `"status": "running"`, no `model_final.pt`. Second session: `resuming after epoch 2/3`, then only `epoch 3/3`. Max absolute log difference: lr 0.0, train_loss 0.0, train_acc 0.0, val_loss 0.0, val_acc 0.0. Weights: `allclose True identical True` over 34 tensors.
@@ -374,6 +374,9 @@ All on CPU, real CIFAR-10 unless stated. All numbers are smoke numbers.
 - Failure status: unusable `DATA_DIR` -> `PermissionError`, `"status": "failed"` with the message in `error`.
 - Smoke isolation: `ls results/raw | wc -l` -> `0`.
 - Registry: `python -m scripts.registry` -> `wrote .../runs.csv (4 runs)`; header is the 16 meta columns + `has_results,clean_accuracy`.
+- Shortened run: `python -m src.train --config configs/cnn_standard.yaml --seed 0 --epochs 1`. Before the C5 change -> `cnn-standard-s0`, log in `raw/`. After it -> `smoke-cnn-standard-s0`, log in `smoke/`, no `raw/` folder. `load_config` still gives `cnn-standard-s0` with no override, and 30 or 31 epochs keep that id (tests).
+- Same run id, other settings: finished `smoke-x`, then `--subset 128 --run-id smoke-x` -> `WARNING: smoke-x was NOT retrained`, `subset: 512 -> 128`, exit 0.
+- `error` cleared: failed `smoke-y` has 1 `"error"` line in `run_meta.json`; after a successful re-run it has 0.
 - Leakage: `grep -nE "train=False|get_test_dataset|cifar10c" src/train.py` -> no matches (exit 1); importing `src.train` loads no `cifar10c` module -> `[]`.
 - The tests catch broken code (scratch copy, one change at a time, `pytest -q tests/test_train_smoke.py`): no RNG restore -> 1 failed; generator not restored -> 1 failed; optimizer not restored -> 1 failed; scheduler not restored -> 1 failed; log not trimmed -> 2 failed; smoke logs sent to raw -> 3 failed; no NaN guard -> 1 failed; no `scheduler.step()` -> 1 failed; failed status not set -> 2 failed. The scheduler change first passed all tests, so the resume test now runs 4 epochs with the stop at 2.
 
@@ -391,6 +394,9 @@ Run folder size, resnet18 (`du -sh`) [smoke]: `checkpoint_last.pt` 86M, `model_f
 
 ### Changed from earlier phases
 - `src/utils.py`: added `get_rng_states` and `set_rng_states`, because C1 places checkpoint io there. Module docstring updated.
+- `docs/agent-prompts/CONTRACTS.md` (human approved, 2026-11-04): C6 adds `error` to `run_meta.json`, failed runs only, because BUILD asks for the error message and C6 had no key for it. C5 makes `--epochs` below the config's value a smoke run, because a shortened run with a real run id would count as finished and a later full run would be skipped.
+- `src/config.py`: `load_config` applies that C5 rule. `tests/test_config.py`: 2 new tests.
+- `docs/agent-prompts/phase-05-training-loop/VALIDATE.md` (human approved): V5 uses its own `RUNS_DIR` and checks that each run really trained.
 - `scripts/registry.py`: was a Phase 08 stub docstring; filled now because this BUILD asks for it.
 
 ### Not done / deferred
@@ -398,10 +404,8 @@ Run folder size, resnet18 (`du -sh`) [smoke]: `checkpoint_last.pt` 86M, `model_f
 - Real training -> Phase 07. Multi-run orchestration -> Phase 08.
 
 ### Known issues
-- **`run_meta.json` gets one key outside C6 when a run fails.** BUILD asks for `status: failed` "with the error message"; C6 lists no key for it, so a failed run has an `error` key. Finished runs have exactly the C6 keys, and the next session of the run removes `error`. `registry.py` ignores it. Suggested fix if the human agrees: add `error` to C6 as "failed runs only".
-- **A smoke run can share its run id with an earlier one.** `configs/smoke.yaml` and `configs/cnn_standard.yaml --subset N` both give `smoke-cnn-standard-s0` at seed 0. If the first is finished, the second exits 0 without training, as BUILD requires, and prints `WARNING: ... was NOT retrained`. VALIDATE V5 after V3 hits this: use another `RUNS_DIR` for V5, or that combination does not really train.
+- **A smoke run can share its run id with an earlier one.** `configs/smoke.yaml` and `configs/cnn_standard.yaml --subset N` both give `smoke-cnn-standard-s0` at seed 0. If the first is finished, the second exits 0 without training, as BUILD requires, and prints `WARNING: ... was NOT retrained`. VALIDATE V5 now uses its own `RUNS_DIR` for this reason.
 - An unfinished run with different settings is refused (exit 1); only finished runs warn and exit 0.
-- `--epochs` without `--subset` keeps a real run id, and its log goes to `results/raw/`. C5 ties smoke to `--subset` only. Such a cut-short run is not a real result (RULES section 4); do not use `--epochs` alone below the frozen value.
 - With `num_workers > 0`, a resumed epoch's shuffle differs from the uninterrupted run's (`f8d5a7b54eed` vs `5b2957f464c8` for epoch 3), because the new session draws a base seed from the generator first. This is within the human's accepted difference (DECISIONS change log, 2026-11-04). A pilot or real run that gets interrupted must be noted in the run log.
 - A resume across commits prints a warning, and `run_meta.json` records only the last session's `git_commit`.
 - A process killed during `atomic_save` leaves a hidden `.checkpoint_last.pt.*.tmp` of up to 86M for ResNet-18; nothing removes it. Delete it by hand if Drive space runs short.

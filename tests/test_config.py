@@ -40,6 +40,19 @@ def test_smoke_run_id_and_overrides():
     assert load_config(CONFIGS / "cnn_standard.yaml", run_id="mine")["run_id"] == "mine"
 
 
+def test_fewer_epochs_than_the_config_make_a_smoke_run():
+    cfg = load_config(CONFIGS / "cnn_standard.yaml", seed=0, epochs=1)
+    assert cfg["run_id"] == "smoke-cnn-standard-s0"
+    cfg = load_config(CONFIGS / "cnn_standard.yaml", seed=0, epochs=1, run_id="mine")
+    assert cfg["run_id"] == "smoke-mine"
+
+
+def test_config_epochs_or_more_keep_the_real_run_id():
+    for epochs in (None, 30, 31):
+        cfg = load_config(CONFIGS / "cnn_standard.yaml", seed=0, epochs=epochs)
+        assert cfg["run_id"] == "cnn-standard-s0"
+
+
 def test_main_configs_differ_only_in_model_strategy_epochs():
     base = yaml.safe_load((CONFIGS / "cnn_standard.yaml").read_text())
     for name in MAIN:
