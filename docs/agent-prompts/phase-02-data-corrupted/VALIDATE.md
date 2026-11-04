@@ -17,7 +17,7 @@ The data should already be in `DATA_DIR`. If it is not, run the download script 
 | V5 | Extracted files verify | Must | `python -m scripts.download_cifar10c --verify-only`; then corrupt a copy: copy one `.npy` to `/tmp`, point a temp `DATA_DIR` at a folder where one file is changed by one byte, run verify, it must fail loudly |
 | V6 | File inventory | Must | 19 corruption files + labels; names equal C3 lists; each uint8 (50000,32,32,3) via `np.load(mmap_mode="r")` |
 | V7 | Label alignment | Must | for s in 0..4: `labels[s*10000:(s+1)*10000] == CIFAR10(train=False).targets` |
-| V8 | Severity slicing is correct | Must | `load_cifar10c("gaussian_noise", 1)` and `(…, 5)`: images differ; mean absolute difference from the clean test images grows from severity 1 to 5 for at least 13 of the 15 corruptions (compute it) |
+| V8 | Severity slicing is correct | Must | `load_cifar10c("gaussian_noise", 1)` and `(…, 5)`: images differ; mean absolute difference from the clean test images grows from severity 1 to 5 for at least 11 of the 15 corruptions (compute it; the published data gives 11: glass_blur, motion_blur, frost and elastic_transform are not strictly increasing in this measure, see PROGRESS Phase 02) |
 | V9 | Memory-mapped loading | Should | read the code: uses `mmap_mode="r"` and slices |
 | V10 | Input validation | Must | bad name, severity 0 and 6 each raise `ValueError` |
 | V11 | Leakage guard | Must | `grep -rniE "cifar10c\|CIFAR-10-C" src/train.py src/data/transforms.py src/data/corruptions.py src/models/` is empty; the leakage test fails if you add such an import to a temp copy (do it in `/tmp`, not in the repo) |

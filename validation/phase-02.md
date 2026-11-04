@@ -1,0 +1,42 @@
+# Validation: Phase 02 data-corrupted
+
+- Date: 2026-11-03
+- Branch / commit checked: phase-02-data-corrupted @ d08558d7dff06df589de33a7c38f88232414a14a
+- Working tree clean before checking: yes
+- Environment: Python 3.12.16, torch 2.14.1+cpu (torchvision 0.29.2+cpu), device cpu
+- Verdict: PASS
+
+## Summary
+Re-ran every check in VALIDATE.md against the real, checksum-verified CIFAR-10-C in `./data`. The archive md5 in `splits/cifar10c_checksums.json` equals the value Zenodo's API returns today. The full download → verify → extract → hash path was exercised on a scratch copy, HTTP Range resume was tested live, and tampering is caught. Labels line up for every severity, slicing is correct, and validation, the leakage guard and the sample grid all behave as specified. The severity-monotonicity measure gives exactly 11/15, which meets the V8 threshold set by the human.
+
+## Checks
+| ID | Check | Must/Should | Result | Evidence |
+|---|---|---|---|---|
+| V1 | Branch, clean tree, commit | Must | PASS | `git branch --show-current` -> `phase-02-data-corrupted`; `git status` -> `nothing to commit, working tree clean`; HEAD `d08558d` ("docs: phase 02 VALIDATE V8 threshold…") on top of `4f0adf7 phase 02: CIFAR-10-C download, verify, loader, sample grid` |
+| V2 | Lint, format, tests | Must | PASS | `ruff format --check .` -> `68 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `67 passed in 2.95s` (real 0m4.06s, CPU) |
+| V3 | Download script works and is idempotent | Must | PASS | (a) Repo `./data`, run 1 and run 2 of `python -m scripts.download_cifar10c` -> `structure ok: 20 files…` / `all 20 files match splits/cifar10c_checksums.json` / `extracted files already verified; nothing to download`, exit 0 (real 0m9.2s). (b) Archive path: a scratch `--data-dir` containing only a symlink to `CIFAR-10-C.tar` -> `zenodo: CIFAR-10-C.tar 2918471680 bytes md5:56bf5d…8499` / `archive md5: zenodo 56bf5dcef84df0e2308c6dcbcbbd8499  local 56bf5dcef84df0e2308c6dcbcbbd8499` / `archive checksum matches Zenodo` / `extracting 21 entries…` / `all 20 files match…` (real 16s). A second run on that directory -> `nothing to download`. (c) Live download plus resume in an empty scratch dir, killed with `timeout 20` twice: run 1 left `CIFAR-10-C.tar.part` at 1048576 bytes; run 2's progress bar started at `1.05M/2.92G` and ended at 2097152 bytes, so the Range resume works |
+| V4 | Checksum source is Zenodo, not memory | Must | PASS | `curl https://zenodo.org/api/records/2535967` -> `CIFAR-10-C.tar 2918471680 md5:56bf5dcef84df0e2308c6dcbcbbd8499`; JSON `archive` -> `{'name': 'CIFAR-10-C.tar', 'size': 2918471680, 'checksum_type': 'md5', 'checksum': '56bf5dcef84df0e2308c6dcbcbbd8499'}`; `source: zenodo 2535967`; 20 file hashes. The script reads metadata from the API at run time (`fetch_archive_metadata`, `scripts/download_cifar10c.py:45`) |
+| V5 | Extracted files verify; tamper fails loudly | Must | PASS | `--verify-only` -> `all 20 files match…`, exit 0. On the real extracted copy in scratch, one bit flipped at byte 5000 of `snow.npy` -> `ERROR: sha256 mismatch against cifar10c_checksums.json: ['snow.npy']`, exit 1 (same result through `DATA_DIR=<scratch> … --verify-only`). With `fog.npy` removed -> `ERROR: …CIFAR-10-C: missing ['fog.npy'], unexpected []`, exit 1 |
+| V6 | File inventory | Must | PASS | Scratch script (`np.load(mmap_mode="r")`): `n files 20 labels present True`; `names == C3 15+4: True`; `bad shapes: []` (all 19 are uint8 (50000, 32, 32, 3)); `labels uint8 (50000,)` |
+| V7 | Label alignment | Must | PASS | `labels[s*10000:(s+1)*10000] == CIFAR10(train=False).targets` for s=0..4 -> `[True, True, True, True, True]`. Also, labels from `load_cifar10c` equal the test targets for all 75 (corruption, severity) pairs -> `True` |
+| V8 | Severity slicing is correct | Must | PASS | `load_cifar10c("gaussian_noise",1)` vs `(…,5)` -> differ `True`, `(10000, 32, 32, 3) uint8`, labels int64. Mean \|corrupted − clean\| for s1..s5 matches PROGRESS to 2 decimals; strictly increasing for **11 / 15** (threshold 11). Not increasing: glass_blur 11.17 11.31 11.12 18.18 17.44; motion_blur 6.97 10.43 13.10 13.08 15.29; frost 30.42 44.75 49.42 44.82 43.08; elastic_transform 21.87 20.00 17.95 16.54 13.67. `load_cifar10c("fog",3)` -> `(10000, 32, 32, 3) uint8 (10000,) int64` |
+| V9 | Memory-mapped loading | Should | PASS | `src/data/cifar10c.py` `load_cifar10c`: `np.load(img_path, mmap_mode="r")`, then `images[rows]` with `rows` a slice of 10,000 (`_severity_rows`). Only that slice is copied with `np.asarray` |
+| V10 | Input validation | Must | PASS | `('not_a_corruption',1)` -> `ValueError: unknown corruption 'not_a_corruption'; expected one of …`; `('fog',0)` -> `ValueError: severity must be in 1..5, got 0`; `('fog',6)` -> `ValueError: severity must be in 1..5, got 6` |
+| V11 | Leakage guard | Must | PASS | `grep -rniE "cifar10c\|CIFAR-10-C" src/train.py src/data/transforms.py src/data/corruptions.py src/models/` -> no output (exit 1). In a scratch `git archive HEAD` copy, appending `from src.data.cifar10c import load_cifar10c` to `src/data/transforms.py` and `import src.data.cifar10c` to `src/metrics.py` -> `2 failed`: `CIFAR-10-C referenced in training code: ['src/data/transforms.py: cifar10c']` and `only evaluate.py and make_sample_grid.py may import cifar10c: ['src/data/transforms.py', 'src/metrics.py']`. Only `scripts/make_sample_grid.py` imports the module in the repo (`scripts/download_cifar10c.py` only mentions the checksums file name) |
+| V12 | Sample grid | Must | PASS | Opened `results/figures/fig7_sample_grid.png` (1820×3870): title "CIFAR-10-C, test image 23 (class: truck)". Columns are clean, severity 1–5, and the 15 rows are labelled with name and family. Noise, defocus/zoom/motion blur, snow, fog, brightness, contrast, pixelate and jpeg visibly get stronger from left to right. glass_blur s1–s3 look alike; frost s1–s4 has a blue tint and s5 has more texture; elastic_transform s1 looks the most distorted. This matches V8. Regenerating with `python -m scripts.make_sample_grid --out <scratch>/grid.png` -> `index 23, truck`, pixel-identical to the committed PNG |
+| V13 | Colab cells | Should | PASS | `notebooks/00_colab_setup.ipynb`: if `MyDrive/cifar10-robustness/data/CIFAR-10-C` exists, it runs `copytree` to `/content/data` and then `scripts.download_cifar10c --verify-only` (`check=True`). Otherwise it runs the script, copies to Drive and removes the tar. Only subprocess calls and file copies; no verification logic in the notebook. `notebooks/01_explore_data.ipynb` section 2 only displays the saved PNG |
+| V14 | Tests use no real CIFAR-10-C | Should | PASS | `tests/test_cifar10c.py`: the `fake_dir` fixture writes tiny arrays under `tmp_path/CIFAR-10-C` and monkeypatches `N_PER_SEVERITY`. Every loader test uses it; no reference to `./data` |
+| V15 | `PROGRESS.md` claims match | Should | PASS | Zenodo metadata, archive md5, 20 hashes, idempotent second run, tamper failure, inventory, label alignment, fog s3 shapes, all 15×5 pixel-difference values, 11/15, the grid description, the leakage-test failures and the lint output match. The test count (67) matches; the time differs trivially (2.95s vs 4.25s) |
+
+## Failures (if any)
+None.
+
+## Notes (non-blocking)
+- I did not repeat a full 2.9 GB network download. The download code path was tested live up to 2 MB, including resume, and the verify/extract path was run on the real archive.
+- The leakage guard catches only static imports and literal names. `importlib.import_module("src.data." + "cifar" + "10c")` would get past it. That is acceptable for a guard test, but reviewers of later phases should keep it in mind.
+- Notebook 00, first session: the copy to Drive is not re-verified right after `copytree`. A truncated Drive copy would only be caught by `--verify-only` in the next session, so it fails loudly rather than silently.
+- VALIDATE V5 says to use `/tmp`. Scratch work went to the session's scratch directory under `/tmp/claude-1000/…`, and nothing was written in the repo except this file.
+
+## Claims in PROGRESS.md that could not be confirmed
+- "Human downloaded the archive with a download manager": this cannot be checked, but it does not matter, because the archive verifies against Zenodo's md5.
+- Notebook 00 cells were not executed (Colab-only Drive mount). This was confirmed by reading them only, as in PROGRESS.
