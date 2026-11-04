@@ -292,7 +292,9 @@ def _run_epochs(
         model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         scheduler.load_state_dict(checkpoint["scheduler"])
-        scaler.load_state_dict(checkpoint["scaler"])
+        # A checkpoint from a CPU session holds an empty state, which an enabled scaler refuses.
+        if checkpoint["scaler"]:
+            scaler.load_state_dict(checkpoint["scaler"])
         done = checkpoint["epoch"]
         # Last, and before the first iterator: it draws the shuffle order and the worker base
         # seed from the DataLoader generator, which must not restart from its seed.
