@@ -205,7 +205,7 @@ bash scripts/run_all.sh [--models ...] [--strategies ...] [--seeds ...]   # skip
 
 ## C8. Run registry: `results/runs.csv`
 
-One row per run: all `run_meta.json` fields + `has_results` (bool) + `clean_accuracy` (from the results CSV, empty if none). Rebuilt by `python -m scripts.registry`; never edited by hand.
+One row per run: all `run_meta.json` fields except `error` + `has_results` (bool) + `clean_accuracy` (from the results CSV, empty if none). Rebuilt by `python -m scripts.registry`; never edited by hand.
 
 ## C9. Analysis outputs
 

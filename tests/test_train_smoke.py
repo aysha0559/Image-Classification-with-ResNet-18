@@ -241,6 +241,16 @@ def test_non_training_keys_may_change_on_resume(dirs, monkeypatch):
     assert meta(run_dir)["status"] == "finished"
 
 
+def test_checkpoint_from_cpu_resumes_with_an_enabled_scaler(dirs, monkeypatch):
+    """A CPU session saves an empty scaler state; a GPU session must resume from it anyway."""
+    run_dir = interrupted_run(monkeypatch, "smoke-t", epochs=2, stop_after=1)
+    assert torch.load(run_dir / "checkpoint_last.pt", weights_only=False)["scaler"] == {}
+    enabled_scaler = torch.amp.GradScaler("cpu", enabled=True)  # stands in for a GPU's scaler
+    monkeypatch.setattr(torch.amp, "GradScaler", lambda *args, **kwargs: enabled_scaler)
+    train(smoke_cfg())
+    assert meta(run_dir)["status"] == "finished"
+
+
 def test_finished_run_is_skipped(dirs, monkeypatch, capsys):
     run_dir = train(smoke_cfg())
     before = (run_dir / "train_log.csv").read_bytes(), meta(run_dir)

@@ -524,3 +524,73 @@ Evaluation time on CPU, this machine (no CUDA), 4 torch threads, batch size 512,
 
 ### Ideas for later
 - none
+
+## Phase 07: pilot  (2026-11-04, branch phase-07-pilot, commit: the one titled "phase 07: pilot run cnn-standard-s0 and frozen epochs"; the run itself used 004edc3)
+
+### Built
+- `notebooks/run_on_colab.ipynb`: parameters cell (`MODEL`, `STRATEGY`, `SEED`, `STAGE`, plus `RUN_TIMING`), then setup, data, train, evaluate, save to Drive, optional timing, flush. It stops on any failed step and if there is no GPU. Console output is kept on Drive under `results/logs/`. Calls only.
+  - The setup cells are copied from `00_colab_setup.ipynb` rather than `%run`, because the repo does not exist yet when the notebook opens.
+  - `results/raw/` is restored from Drive at the start, and evaluation is skipped if the run's CSV is already there.
+  - `RUN_TIMING` also evaluates a throwaway 1-epoch ResNet-18 (`smoke-timing-resnet18-eval`), because BUILD's timing runs stop unfinished and cannot be evaluated. Its output goes to `results/smoke/`; only the time is used.
+- `results/raw/cnn-standard-s0.csv`, `_confusion.npz`, `_train_log.csv`, `results/runs.csv`, `results/pilot_report.md`.
+
+### How to run it
+    # Colab: open the notebook from this branch, GPU runtime, set the parameters, Runtime > Run all
+    https://colab.research.google.com/github/aysha0559/Image-Classification-with-ResNet-18/blob/phase-07-pilot/notebooks/run_on_colab.ipynb
+    # Locally, with the run's run_meta.json, train_log.csv and model_final.pt in runs/cnn-standard-s0/
+    .venv/bin/python -m scripts.registry
+    RESULTS_DIR=/some/scratch .venv/bin/python -m src.evaluate --run-dir runs/cnn-standard-s0 --subset 2000
+
+### Verified (with output)
+- GPU: `device_name` in `run_meta.json` -> `Tesla T4`, for the pilot and all 5 timing runs. `git_commit` -> `004edc3c3324ebd5174b4a1819d9bb6858885511`, `git_dirty` -> false, `status` -> `finished`, `epochs` -> 30.
+- AMP, `GradScaler`, CUDA RNG restore and resume on a GPU ran for the first time here: no error came from them.
+- Real disconnect: Runtime > Disconnect and delete runtime during training. The next session printed `cnn-standard-s0: resuming after epoch 11/30`, then `epoch 12/30`, with no `WARNING`. The log has 30 rows, epochs 1..30 once each, no NaN; `lr` matches the cosine formula (`numpy.allclose` -> True). `started_at` kept the first session's value.
+- Evaluation output on Colab: `76 conditions, 10000 images each`, `clean accuracy 0.8404`, `mean corrupted accuracy 0.5974 (over 75 conditions)`.
+- Files after download: CSV `(76, 14)`, columns match C7, `n_images` only `[10000]`; npz 76 matrices, each summing to 10000; `train_log.csv` in the run folder identical to `results/raw/`.
+- Own forward pass on CPU, `model_final.pt`, all 10,000 clean test images, torch 2.14.1 (before the pin change) -> `8404 10000 0.8404`, CSV `0.8404`.
+- `src.evaluate --run-dir runs/cnn-standard-s0 --subset 2000` with a scratch `RESULTS_DIR`, torch 2.11.0 -> `76 conditions, 2000 images each`, clean 0.8405 [smoke]. `results/raw` unchanged.
+- `python -m scripts.registry` -> `wrote results/runs.csv (1 runs)`; row has `has_results` True, `clean_accuracy` 0.8404.
+- Scaler fix: the new test passes, and fails with the fix removed (`1 failed`).
+- Notebook dry run under IPython in a scratch folder, CPU, data shrunk, fake Drive: stopped at epoch 3 and re-run -> `resuming after epoch 3/30`; third run -> `already finished` and `results already exist`; a missing config -> `FAILED at cell 13`. One timing-cell line changed after that and was checked only with `var_expand`; it then ran on Colab.
+- Lint/tests with torch 2.11.0: `ruff format --check .` -> `81 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `265 passed in 56.01s` (real 0m59.137s, CPU).
+- Timing runs: `results/raw` holds only `cnn-standard-s0*`. The 5 `timing-*` folders and `smoke-timing-resnet18-eval` were moved to Drive Trash after the human confirmed (Drive: `6 items moved to trash`). Only `cnn-standard-s0` remains in `runs/`.
+
+### Numbers produced
+All in `results/pilot_report.md`, with sources [real, except the ResNet-18 evaluation model, which is smoke and used only for its time].
+- Clean accuracy 0.8404, macro-F1 0.8391; mean corrupted accuracy 0.5974 (source: `results/raw/cnn-standard-s0.csv`). Gate 0.78-0.90 passed.
+- Train time 620.0 s, 30 epochs (source: `run_meta.json`).
+- Evaluation wall time on 76 conditions: simple_cnn 182 s, resnet18 210 s (source: console logs).
+- Mean s per epoch on the T4: cnn standard 20.667, augmix 118.171, corruption_aware 28.180; resnet18 standard 24.340, augmix 122.687, corruption_aware 35.268 (source: train logs; the timing values are written out in the report).
+- Projected GPU hours for the 18-run matrix: 9.71 at 30 ResNet epochs, 11.23 at 40, 12.75 at 50.
+
+### Changed from earlier phases
+- `src/train.py`: skips an empty scaler state on resume, because a CPU checkpoint would otherwise fail on a GPU (`validation/phase-05.md` note, agreed before that merge). `tests/test_train_smoke.py`: 1 new test.
+- `docs/agent-prompts/CONTRACTS.md` C8: `error` is not a registry column (same agreement).
+- `docs/agent-prompts/DECISIONS.md`: D4 ResNet-18 epochs `CONFIRMED` at 40; 2 change-log rows.
+- `configs/resnet18_*.yaml`: comment only; `epochs` was already 40.
+- `requirements-local.txt`: torch 2.11.0, torchvision 0.26.0 (were 2.14.1 and 0.29.2), the human's choice, to meet D9. `.venv` reinstalled.
+
+### Not done / deferred
+- `BRANCH` in `run_on_colab.ipynb` is `phase-07-pilot`; set it to `main` after the merge -> Phase 08.
+- "Run the matrix" mode and syncing after each run -> Phase 08.
+- The timing folders are in Drive Trash, not permanently deleted; Trash was not emptied.
+- `model_final.pt` is at `runs/cnn-standard-s0/` on this machine and on Drive, not committed.
+
+### Known issues
+- **The pilot differs from BUILD's single session.** A first T4 session (12:00 UTC) was stopped during the download, which would have taken about 2 hours of GPU time. The human chose to prepare the data on a CPU runtime instead. Training then ran in two T4 sessions, and the timing runs in the second, as BUILD asks. Results are unaffected: CIFAR-10-C passed `all 20 files match` in every session.
+- **Disconnect and delete does not stop the process at once.** Page output stopped at epoch 6, but the process ran on through epoch 11 and died writing the log for epoch 12 with `FileNotFoundError`. That traceback is in `results/logs/cnn-standard-s0.console.log` on Drive. Session 2 did not start until the old process had stopped writing, judging by the log having no gaps.
+- The console log on Drive has no `=== session 2026-11-04T13:17:55Z` line, although the notebook showed it. Likely cause: two runtimes wrote the same Drive file. This is not confirmed. No result reads this file.
+- Colab's page can show `Connecting`, `Runtime disconnected` or `Resuming execution` while the runtime keeps working; it twice recovered with all output intact. Read the outputs before treating one as a failure.
+- `pip install -r requirements.txt` on Colab reports `google-colab 1.0.0 requires pandas==2.2.3, but you have pandas 2.3.3`. Nothing failed from it here.
+- Colab runs Python 3.13.16; the local venv is 3.12.16. Phase 00's install check covered Python 3.10-3.12 only, though the install worked on Colab.
+- AugMix is about 5 times slower than standard on ResNet-18, above the overview's 1.5-3 times. The extra cost looks like CPU work in the 2 DataLoader workers: the CNN and ResNet-18 take about the same time per epoch with it. Not tuned; it fits the budget.
+- Projected hours leave out session setup, about 4 minutes per session here.
+
+### Decisions used
+- D4: CNN 30 epochs, seed 0, AMP on CUDA, seeds and determinism as stated; ResNet-18 40 epochs frozen from measured time.
+- D3: `model_final.pt` evaluated.
+- D7: 76 conditions, no extras.
+- D9: Colab's preinstalled torch used; local pins now match its major.minor; data and runs on Drive.
+
+### Ideas for later
+- none

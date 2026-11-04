@@ -1,4 +1,4 @@
-# Proposed D4 value (40); frozen at the end of Phase 07 from measured Colab time.
+# D4: 40 epochs, confirmed at the end of Phase 07 from measured Colab time.
 model: resnet18
 strategy: augmix
 seed: 0

@@ -1,5 +1,5 @@
 # Optional S0 ablation (DECISIONS D5): run only if time allows after Phase 08.
-# Proposed D4 value (40); frozen at the end of Phase 07 from measured Colab time.
+# D4: 40 epochs, confirmed at the end of Phase 07 from measured Colab time.
 model: resnet18
 strategy: none
 seed: 0

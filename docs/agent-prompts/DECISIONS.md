@@ -32,7 +32,7 @@ The **final-epoch** model. No early stopping, no best-validation checkpoint sele
 | Batch size | 128 | Fixed by overview |
 | Mixed precision | On when CUDA is available | Fixed by overview |
 | Epochs, Simple CNN | 30 | Fixed by overview |
-| Epochs, ResNet-18 | **Proposed 40.** Frozen at the end of Phase 07 using measured Colab time. Must be the same for all ResNet strategies. | CONFIRM after Phase 07 |
+| Epochs, ResNet-18 | **40.** Frozen at the end of Phase 07 using measured Colab time (`results/pilot_report.md`). Must be the same for all ResNet strategies. | CONFIRMED |
 | Seeds | 0, 1, 2 | Fixed by overview |
 | Determinism | Seeds set for Python, NumPy, PyTorch (CPU and CUDA); `cudnn.benchmark = False`; `cudnn.deterministic = True`. Exact bit-for-bit repeats on GPU are not promised; same-seed runs should agree within about 0.5 points. | CONFIRMED |
 
@@ -116,3 +116,5 @@ Our S3 corruption functions follow the published formulas and severity parameter
 | 2026-11-04 | D5, D6 | No change to any value. The human accepted that our `jpeg_compression` does not reproduce CIFAR-10-C pixel for pixel: the call and quality values follow the reference and mean strength agrees to about 0.1 pixel levels, but the published images show stronger colour artefacts on some images (PROGRESS Phase 03, Known issues). Do not tune it against CIFAR-10-C. Disclose it in the report's limitations. | Phase 03 comparison; RULES section 3 forbids choosing parameters from CIFAR-10-C | none |
 | 2026-11-04 | D4 | No change to any value. The human accepted that resumed runs are not bit-for-bit identical to uninterrupted ones when `num_workers > 0` or the strategy is `corruption_aware`, because that augmentation state is not checkpointed. A resumed run must not replay the original shuffle order or worker seeds (Phase 05 BUILD). | Same-seed agreement within about 0.5 points is already the D4 standard | none |
 | 2026-11-04 | none (CONTRACTS C5, C6; Phase 05 VALIDATE V5) | No change to any value here. The human approved three edits in the Phase 05 build session ("Go ahead with your recommendations"): C6 adds `error` to `run_meta.json` for failed runs only; C5 makes `--epochs` below the config's value a smoke run; V5 uses its own `RUNS_DIR` and checks that each run really trained. | Records the approval, which the Phase 05 validator could not find in the repo | none |
+| 2026-11-04 | D4 | ResNet-18 epochs frozen at 40, the proposed value, confirmed by the human. Projection: 11.23 GPU hours for the 18-run matrix (`results/pilot_report.md`). | Chosen from measured T4 time only, not from test or CIFAR-10-C results | none; no ResNet run exists yet |
+| 2026-11-04 | D9 | No change to the rule. `requirements-local.txt` now pins torch 2.11.0 and torchvision 0.26.0, the versions Colab used in the pilot, at the human's choice. It pinned 2.14.1 and 0.29.2 before. | D9 asks for the same major.minor as Colab; Phase 00 could not check Colab's versions | none |
