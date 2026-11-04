@@ -72,6 +72,7 @@ cifar10-robustness-study/
 ├── results/                        # committed (small files only)
 │   ├── runs.csv
 │   ├── pilot_report.md             # Phase 07
+│   ├── pilot_logs/                 # Phase 07: console logs, run_meta.json of the pilot and timing runs, timing train logs
 │   ├── RUNLOG.md                   # Phase 08, one entry per Colab session
 │   ├── raw/{run_id}.csv
 │   ├── raw/{run_id}_confusion.npz

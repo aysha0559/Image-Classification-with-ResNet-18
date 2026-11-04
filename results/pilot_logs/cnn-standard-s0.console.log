@@ -1,0 +1,92 @@
+=== session 2026-11-04T12:00:11Z commit 004edc3c3324ebd5174b4a1819d9bb6858885511
+=== session 2026-11-04T13:10:16Z commit 004edc3c3324ebd5174b4a1819d9bb6858885511
+epoch 1/30 lr 0.10000 train_loss 2.1748 train_acc 0.1694 val_loss 1.8851 val_acc 0.2584 time 26.8s
+epoch 2/30 lr 0.09973 train_loss 1.9201 train_acc 0.2471 val_loss 1.6517 val_acc 0.3718 time 21.5s
+epoch 3/30 lr 0.09891 train_loss 1.6343 train_acc 0.3780 val_loss 1.2801 val_acc 0.5316 time 22.0s
+epoch 4/30 lr 0.09755 train_loss 1.4116 train_acc 0.4854 val_loss 1.3441 val_acc 0.5380 time 23.3s
+epoch 5/30 lr 0.09568 train_loss 1.2962 train_acc 0.5396 val_loss 1.0603 val_acc 0.6170 time 21.4s
+epoch 6/30 lr 0.09330 train_loss 1.2086 train_acc 0.5731 val_loss 0.9342 val_acc 0.6662 time 22.8s
+epoch 7/30 lr 0.09045 train_loss 1.1431 train_acc 0.6003 val_loss 0.9371 val_acc 0.6640 time 22.2s
+epoch 8/30 lr 0.08716 train_loss 1.0866 train_acc 0.6248 val_loss 1.3923 val_acc 0.5656 time 21.0s
+epoch 9/30 lr 0.08346 train_loss 1.0354 train_acc 0.6408 val_loss 0.7766 val_acc 0.7198 time 23.3s
+epoch 10/30 lr 0.07939 train_loss 0.9915 train_acc 0.6597 val_loss 0.8706 val_acc 0.7004 time 21.2s
+epoch 11/30 lr 0.07500 train_loss 0.9624 train_acc 0.6690 val_loss 0.8188 val_acc 0.7018 time 22.2s
+Traceback (most recent call last):
+  File "/content/cifar10-robustness-study/src/train.py", line 374, in train
+    _run_epochs(cfg, run_dir, meta, checkpoint, stop_after)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/content/cifar10-robustness-study/src/train.py", line 315, in _run_epochs
+    _append_log(
+    ~~~~~~~~~~~^
+        log_path,
+        ^^^^^^^^^
+    ...<8 lines>...
+        },
+        ^^
+    )
+    ^
+  File "/content/cifar10-robustness-study/src/train.py", line 192, in _append_log
+    with path.open("a", newline="") as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 537, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/content/drive/MyDrive/cifar10-robustness/runs/cnn-standard-s0/train_log.csv'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/content/cifar10-robustness-study/src/train.py", line 405, in <module>
+    main()
+    ~~~~^^
+  File "/content/cifar10-robustness-study/src/train.py", line 401, in main
+    train(cfg, resume=not args.no_resume)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/content/cifar10-robustness-study/src/train.py", line 378, in train
+    _write_meta(run_dir, meta)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/content/cifar10-robustness-study/src/train.py", line 103, in _write_meta
+    tmp.write_text(json.dumps(meta, indent=2) + "\n")
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 555, in write_text
+    return PathBase.write_text(self, data, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_abc.py", line 651, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 537, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/content/drive/MyDrive/cifar10-robustness/runs/cnn-standard-s0/.run_meta.json.tmp'
+cnn-standard-s0: resuming after epoch 11/30
+epoch 12/30 lr 0.07034 train_loss 0.9328 train_acc 0.6841 val_loss 0.7981 val_acc 0.7098 time 21.0s
+epoch 13/30 lr 0.06545 train_loss 0.8958 train_acc 0.6963 val_loss 0.7324 val_acc 0.7468 time 18.8s
+epoch 14/30 lr 0.06040 train_loss 0.8781 train_acc 0.7043 val_loss 0.7150 val_acc 0.7564 time 19.4s
+epoch 15/30 lr 0.05523 train_loss 0.8512 train_acc 0.7135 val_loss 0.7171 val_acc 0.7492 time 20.3s
+epoch 16/30 lr 0.05000 train_loss 0.8204 train_acc 0.7258 val_loss 0.7357 val_acc 0.7390 time 19.0s
+epoch 17/30 lr 0.04477 train_loss 0.8022 train_acc 0.7311 val_loss 0.6710 val_acc 0.7712 time 18.8s
+epoch 18/30 lr 0.03960 train_loss 0.7746 train_acc 0.7413 val_loss 0.5699 val_acc 0.7954 time 20.1s
+epoch 19/30 lr 0.03455 train_loss 0.7524 train_acc 0.7509 val_loss 0.6415 val_acc 0.7798 time 20.5s
+epoch 20/30 lr 0.02966 train_loss 0.7291 train_acc 0.7559 val_loss 0.5803 val_acc 0.8028 time 19.0s
+epoch 21/30 lr 0.02500 train_loss 0.7165 train_acc 0.7620 val_loss 0.5801 val_acc 0.8024 time 19.1s
+epoch 22/30 lr 0.02061 train_loss 0.6923 train_acc 0.7706 val_loss 0.5149 val_acc 0.8226 time 20.3s
+epoch 23/30 lr 0.01654 train_loss 0.6591 train_acc 0.7808 val_loss 0.5482 val_acc 0.8106 time 19.5s
+epoch 24/30 lr 0.01284 train_loss 0.6471 train_acc 0.7856 val_loss 0.5235 val_acc 0.8218 time 18.9s
+epoch 25/30 lr 0.00955 train_loss 0.6271 train_acc 0.7929 val_loss 0.4916 val_acc 0.8312 time 18.9s
+epoch 26/30 lr 0.00670 train_loss 0.6086 train_acc 0.7976 val_loss 0.4665 val_acc 0.8350 time 20.3s
+epoch 27/30 lr 0.00432 train_loss 0.5968 train_acc 0.8032 val_loss 0.4606 val_acc 0.8420 time 19.6s
+epoch 28/30 lr 0.00245 train_loss 0.5825 train_acc 0.8074 val_loss 0.4508 val_acc 0.8444 time 19.0s
+epoch 29/30 lr 0.00109 train_loss 0.5731 train_acc 0.8111 val_loss 0.4389 val_acc 0.8482 time 19.0s
+epoch 30/30 lr 0.00027 train_loss 0.5675 train_acc 0.8137 val_loss 0.4369 val_acc 0.8474 time 20.7s
+cnn-standard-s0: finished, /content/drive/MyDrive/cifar10-robustness/runs/cnn-standard-s0
+cnn-standard-s0: 76 conditions, 10000 images each
+clean accuracy          0.8404
+mean corrupted accuracy 0.5974 (over 75 conditions)
+worst conditions:
+  impulse_noise s5: 0.1718
+  gaussian_noise s5: 0.1791
+  contrast s5: 0.2097
+wrote results/raw/cnn-standard-s0.csv
+evaluate wall time 182 s

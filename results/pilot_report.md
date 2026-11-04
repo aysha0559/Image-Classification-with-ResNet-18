@@ -4,9 +4,9 @@ Simple CNN, standard augmentation (S1), seed 0, 30 epochs, on a Colab Tesla T4, 
 
 Sources:
 - `results/raw/cnn-standard-s0.csv`, `results/raw/cnn-standard-s0_train_log.csv`, `results/runs.csv`.
-- `run_meta.json` of each run, and the console logs `cnn-standard-s0.console.log` and `timing.console.log`, downloaded from `MyDrive/cifar10-robustness/results/`.
+- `results/pilot_logs/`: `run_meta.json` of each run, the train logs of the timing runs, and the console logs `cnn-standard-s0.console.log` and `timing.console.log`, as downloaded from `MyDrive/cifar10-robustness/results/`.
 
-The timing runs are thrown away after this phase, so their raw epoch times are written out in full in the table below.
+The timing runs themselves were thrown away after this phase; only those small files were kept.
 
 ## Gates
 
@@ -63,7 +63,7 @@ From `results/raw/cnn-standard-s0_train_log.csv`:
 
 - Runtime > Disconnect and delete runtime was used during training.
 - The output on the page stopped at epoch 6, but the process kept running after that. Epochs 7 to 11 are in the console log.
-- It died at epoch 12 with `FileNotFoundError` when writing to Drive, because Drive had gone with the runtime. That traceback is in the console log. It is the old session ending, not a fault in the resumed run.
+- It died at epoch 12 with `FileNotFoundError` when writing to Drive, because Drive had gone with the runtime. The console log has 2 tracebacks there: that one, and a second from `_write_meta` while it tried to record the failure, also because Drive had gone. They are the old session ending, not a fault in the resumed run.
 - The next session printed `cnn-standard-s0: resuming after epoch 11/30`, with no warning, and ran epochs 12 to 30.
 - `started_at` stayed at the first session's value.
 - `train_time_s` (620.0 s) counts completed epochs only, so the partial epoch 12 of the first session is not in it.

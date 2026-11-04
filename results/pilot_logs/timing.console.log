@@ -1,0 +1,26 @@
+epoch 1/40 lr 0.10000 train_loss 2.1238 train_acc 0.2480 val_loss 1.6158 val_acc 0.4074 time 25.6s
+epoch 2/40 lr 0.09985 train_loss 1.3914 train_acc 0.4910 val_loss 1.3212 val_acc 0.5372 time 23.1s
+timing-resnet18_standard: stopped after epoch 2 (STOP_AFTER_EPOCHS)
+epoch 1/40 lr 0.10000 train_loss 1.9741 train_acc 0.3139 val_loss 1.5346 val_acc 0.4268 time 123.8s
+epoch 2/40 lr 0.09985 train_loss 1.4286 train_acc 0.4785 val_loss 1.3774 val_acc 0.5262 time 121.6s
+timing-resnet18_augmix: stopped after epoch 2 (STOP_AFTER_EPOCHS)
+epoch 1/40 lr 0.10000 train_loss 2.0853 train_acc 0.2672 val_loss 1.6883 val_acc 0.3962 time 36.1s
+epoch 2/40 lr 0.09985 train_loss 1.6025 train_acc 0.4126 val_loss 1.4246 val_acc 0.4746 time 34.5s
+timing-resnet18_corruption_aware: stopped after epoch 2 (STOP_AFTER_EPOCHS)
+epoch 1/30 lr 0.10000 train_loss 2.1959 train_acc 0.1497 val_loss 1.9891 val_acc 0.2198 time 121.1s
+epoch 2/30 lr 0.09973 train_loss 2.0066 train_acc 0.2037 val_loss 1.9274 val_acc 0.2570 time 115.3s
+timing-cnn_augmix: stopped after epoch 2 (STOP_AFTER_EPOCHS)
+epoch 1/30 lr 0.10000 train_loss 2.1958 train_acc 0.1613 val_loss 2.1078 val_acc 0.1736 time 28.9s
+epoch 2/30 lr 0.09973 train_loss 2.0202 train_acc 0.2088 val_loss 1.7685 val_acc 0.3198 time 27.4s
+timing-cnn_corruption_aware: stopped after epoch 2 (STOP_AFTER_EPOCHS)
+epoch 1/1 lr 0.10000 train_loss 2.4125 train_acc 0.0938 val_loss 3.3797 val_acc 0.1250 time 0.9s
+smoke-timing-resnet18-eval: finished, /content/drive/MyDrive/cifar10-robustness/runs/smoke-timing-resnet18-eval
+smoke-timing-resnet18-eval: 76 conditions, 10000 images each
+clean accuracy          0.1000
+mean corrupted accuracy 0.1000 (over 75 conditions)
+worst conditions:
+  gaussian_noise s1: 0.1000
+  gaussian_noise s2: 0.1000
+  gaussian_noise s3: 0.1000
+wrote results/smoke/smoke-timing-resnet18-eval.csv
+resnet18 evaluate wall time 210 s
