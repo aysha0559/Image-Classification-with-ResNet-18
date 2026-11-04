@@ -1,4 +1,4 @@
-"""Seeding, device selection, git info, atomic saving, env paths and a timer."""
+"""Seeding, device selection, git info, atomic saving, parameter count, env paths, a timer."""
 
 from __future__ import annotations
 
@@ -85,6 +85,11 @@ def atomic_save(obj: Any, path: str | os.PathLike) -> None:
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
+
+
+def count_parameters(model: torch.nn.Module) -> int:
+    """Return the number of trainable parameters in `model`."""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 ENV_DEFAULTS: dict[str, str] = {

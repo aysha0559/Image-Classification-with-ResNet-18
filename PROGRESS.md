@@ -271,3 +271,53 @@ Time for 1,000 training images, whole pipeline including ToTensor + Normalize, 1
 
 ### Ideas for later
 - none
+
+## Phase 04: models  (2026-11-04, branch phase-04-models, commit: the one titled "phase 04: simple CNN and CIFAR ResNet-18")
+
+### Built
+- `src/models/simple_cnn.py`: `SimpleCNN(num_classes=10)`, the layer list of overview 7.1; padding and dropout from D11 are named constants and stated in the docstring.
+- `src/models/resnet.py`: `BasicBlock` and `ResNet18(num_classes=10)`, written by hand, no torchvision model. 3x3 stride-1 stem, no max-pool, blocks [2, 2, 2, 2], widths 64/128/256/512, stride 2 at stages 2-4 with a 1x1 projection shortcut, global average pool, Linear(512 -> 10). Kaiming normal on convs, BatchNorm weight 1 / bias 0.
+- `src/models/__init__.py`: `build_model(name, num_classes=10)`; an unknown name raises `ValueError` listing the allowed names.
+- `src/utils.py`: `count_parameters(model)` (trainable parameters).
+- `tests/test_models.py`: 17 test cases: shapes, finite outputs, gradients on every parameter, `num_classes`, unknown name, parameter ranges, same seed same init, CNN layer order, D11 values, ResNet stem, stages, shortcuts and init.
+
+### How to run it
+    .venv/bin/ruff format --check . && .venv/bin/ruff check . && .venv/bin/pytest -q
+    .venv/bin/python -c "from src.models import build_model as b; from src.utils import count_parameters as c; [print(b(n), n, c(b(n))) for n in ('simple_cnn', 'resnet18')]"
+
+### Verified (with output)
+- Lint/tests: `ruff format --check .` -> `73 files already formatted`; `ruff check .` -> `All checks passed!`; `time pytest -q` -> `167 passed in 5.55s` (real 0m6.810s, CPU).
+- Simple CNN `print(model)`: `Conv2d(3, 32)`, BN, ReLU, `Conv2d(32, 32)`, BN, ReLU, `MaxPool2d(2)`, `Dropout(0.25)`; `Conv2d(32, 64)`, BN, ReLU, `Conv2d(64, 64)`, BN, ReLU, `MaxPool2d(2)`, `Dropout(0.25)`; `Conv2d(64, 128)`, BN, ReLU, `MaxPool2d(2)`, `Dropout(0.25)`; `Flatten`, `Linear(2048, 256)`, ReLU, `Dropout(0.5)`, `Linear(256, 10)`. Every conv is 3x3 with `padding=(1, 1)`. This matches overview 7.1 and D11 layer by layer.
+- ResNet `print(model)`: stem `Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))`, no MaxPool in the module; 4 stages of 2 `BasicBlock`s; the first block of stages 2-4 has `stride=(2, 2)` and a `Conv2d(.., kernel_size=(1, 1), stride=(2, 2))` + BN shortcut; `AdaptiveAvgPool2d(1)`; `Linear(512, 10)`.
+- No torchvision model: `grep -rn "torchvision.models\|from torchvision" src/models/` -> no matches.
+- Overfit sanity (scratch script, the same recipe as VALIDATE V10): seeded 64 real training-split images, eval transform, Adam lr 1e-3, CPU. First step at 100% on the batch, train mode / eval mode: simple_cnn 32 / 40, resnet18 4 / 32. Both within 200 steps. [smoke]
+- The tests catch broken code (scratch copy, one change at a time, `pytest -q tests/test_models.py`): block dropout 0.3 -> 1 failed; conv padding 0 -> 4 failed; ResNet blocks (3, 2, 2, 2) -> 5 failed; stem stride 2 -> 5 failed; Kaiming `fan_in` instead of `fan_out` -> 4 failed.
+
+### Numbers produced
+- simple_cnn parameters: 666,858 (source: `count_parameters`, same as `sum(p.numel() ...)`) [real]. Inside 0.5-1.0 M; D11's estimate was about 0.67 M.
+- resnet18 parameters: 11,173,962 (same source) [real]
+- One forward + backward on a batch of 128, random data, CPU, 4 torch threads, this machine, not Colab, torch 2.14.1+cpu; median of 5 after discarding the first (scratch script output, not stored) [smoke]:
+
+| Model | Run 1 (s) | Run 2 (s) |
+|---|---|---|
+| simple_cnn | not captured (output cut off) | 0.323 |
+| resnet18 | 2.711 | 4.330 |
+
+- ResNet-18 varied by about 60% between the two runs, so treat these as rough. They do not predict Colab time; Phase 07 measures that.
+- GPU timing: UNKNOWN; this machine has no CUDA (`torch.cuda.is_available()` -> False). Phase 07 measures it on Colab.
+
+### Changed from earlier phases
+- `src/utils.py`: added `count_parameters`, because BUILD asks for it there. Module docstring updated.
+
+### Not done / deferred
+- Training loop -> Phase 05. `n_params` in `run_meta.json` should use `count_parameters`.
+
+### Known issues
+- D11's "Expected parameters" row still reads "to be measured in Phase 04"; the measured count is recorded here and `DECISIONS.md` was left unchanged.
+
+### Decisions used
+- D11: padding 1 on every 3x3 conv; dropout 0.25 after each conv block; dropout 0.5 before the last Linear.
+- Choices the sources leave open, none affects the layer lists: convs that feed BatchNorm have no bias in both models; `nn.Dropout`, not `Dropout2d`, in the CNN; Kaiming uses `fan_out` with relu; the last BatchNorm in each block is not zero-initialised; Linear layers and all of `SimpleCNN` use PyTorch's default init (BUILD asks for Kaiming only on the ResNet).
+
+### Ideas for later
+- none
