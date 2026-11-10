@@ -653,15 +653,95 @@ None for the matrix. All accuracies above are [smoke].
 - A manual disconnect can leave the old process writing for a while (Phase 07), so the notebook says to wait before starting again. Nothing enforces it.
 - **`results/logs/matrix.console.log` on Drive cannot show that a disconnected process has stopped.** `tee` keeps it open, so Drive uploads it only now and then: during session 2 it stayed at 18:40 for 3 hours while the run was healthy. In session 1 the page said "Runtime disconnected" at 18:30 and the log's time was 18:26, yet the process logged up to epoch 20, about 18:36. Session 2 was started at about 18:36 on that wrong reading. The log shows epochs 1-20 once each, no traceback and no epoch 21 from the old process, and session 2 began training at about 18:43. Checked on import: the run's train log has epochs 1-30 once each, `lr` follows the cosine schedule, and its first 20 rows match the console log exactly, so nothing shows that the two processes overlapped.
 - **After a disconnect, judge by files that are written and closed**: `run_meta.json`, `checkpoint_last.pt`, the results CSV. Wait at least 15 minutes before starting a new session.
-- **Colab's free GPU limit was reached on 2026-11-04 at 21:59 UTC**, after about 5 hours of GPU time that day. The reset time is UNKNOWN: a retry on 2026-11-05 at 06:34 UTC, over 8 hours later, was refused with the same message.
+- **Colab's free GPU limit was reached on 2026-11-04 at 21:59 UTC**, after about 5 hours of GPU time that day. The reset time is UNKNOWN: a retry on 2026-11-05 at 06:34 UTC, over 8 hours later, was refused with the same message. On 2026-11-09 at 12:43 UTC the reply changed to "No backend with GPU available", a capacity message rather than the usage limit.
 - **After a disconnect, `drive.mount` failed once with `ValueError: mount failed`** when the prompt had stayed open during an extension reconnect (18:38). Run all on the same runtime mounted it. No result was affected.
 - If the log is behind the checkpoint by more than the epochs that fit, `run_all.sh` stops with `made no progress` rather than looping.
 
 - **`resnet18-corruption_aware-s1` shows as `missing` here but is trained.** Its folder files reach Drive's `run_folders/` only when a session syncs it, and session 2 was cut off first. `run_meta.json` in `runs/` on Drive says finished (21:33 UTC), and the next session only evaluates it. So `scripts.plan`'s 6.27 hours here overstates the time left by that run's training.
+- **The last run moves to Kaggle (2026-11-10, approved by the human).** Colab refused a GPU from 2026-11-09 23:29 PKT onwards. `notebooks/run_on_kaggle.ipynb` clones commit `7d334eb`, the same as every Colab run, downloads and verifies the data, and runs `scripts/run_all.sh --models resnet18 --strategies augmix --seeds 2` from scratch, exporting in the Drive `results/` layout. Recorded in DECISIONS D9 and its change log, and in CONTRACTS C1 and C2. No change to `src/`, `configs/` or `main`. The partial Colab run (8 of 40 epochs) is not used.
+- **Second batch imported (2026-11-09):** 17 runs, 1,292 rows, all passing C7, all Tesla T4, `git_dirty` False, 16 at `7d334eb`. Configs identical per model; train logs hold epochs 1..E with the cosine `lr`; accuracy falls with severity in every run; clean accuracy in range. Clean-accuracy spread over seeds, in points: cnn standard 1.13, cnn augmix 1.06, cnn corruption_aware 0.71, resnet18 standard 0.11, resnet18 corruption_aware 0.37, resnet18 augmix 0.05 (2 seeds). None above 1.5. `resnet18-augmix-s2` has 8 of 40 epochs on Drive.
 - **First batch imported (2026-11-05):** 9 runs, 684 rows, all passing C7. All on Tesla T4, `git_dirty` False; 8 at `7d334eb`, the pilot at `004edc3` (4 comment lines differ under `src/` and `configs/`). Configs identical per model apart from strategy and seed. Clean accuracy in the overview's range, no NaN, accuracy falls with severity in every run. Seed spread so far, in points: cnn standard 0.14, cnn corruption_aware 0.17, resnet18 standard 0.04.
 
 ### Decisions used
 - D3: `src.evaluate` scores the final-epoch model. D4: epochs from the configs, 30 and 40. D5, D6: default strategies, no S0. D7: 76 conditions. D9: data and runs on Drive.
+
+### Ideas for later
+- none
+
+## Phase 08: full experiment matrix results  (2026-11-10, branch phase-08-experiment-matrix, commit: the one titled "phase 08: full experiment matrix results")
+
+All 18 runs are trained, evaluated, imported and checked. The orchestration entry above describes the tools; this entry covers the results. Not yet validated: `validation/phase-08.md` comes from a separate session.
+
+### Built
+- `notebooks/run_on_kaggle.ipynb`: runs `scripts/run_all.sh` on a Kaggle GPU at commit `7d334eb` and exports in the Drive `results/` layout. Used for `resnet18-augmix-s2` only (DECISIONS D9 exception).
+- `results/raw/`: 54 files (CSV, confusion, train log) for the 18 runs. `results/runs.csv`: rebuilt by `scripts.collect_results`.
+- `results/RUNLOG.md`: one row per session, 4 Colab and 1 Kaggle.
+
+### How to run it
+    .venv/bin/python -m scripts.plan
+    .venv/bin/python -m scripts.collect_results --from <downloaded results or export folder>
+
+### Verified (with output)
+- `python -m scripts.plan` -> `done 18 of 18 runs`, `remaining GPU hours: 0.00`.
+- `collect_results` on each download: `exit 0`; last batch `1 evaluated runs checked, 6 files copied`, `resnet18-augmix-s2: finished, 40 epochs, commit 7d334eb, dirty False, Tesla T4, clean 0.9369`.
+- Scratch check script on `results/raw/` and the run folders: `18 runs; 1368 rows`; `epochs per model: {'simple_cnn': 30, 'resnet18': 40}`; `commits: {'7d334eb': 17, '004edc3': 1}`, all `Tesla T4`, `git_dirty` False, `finished`; every train log holds epochs 1..E once with the cosine `lr`; config_resolved.yaml identical per model apart from strategy and seed; no `CONFIG DIFF`; accuracy falls with severity in every run; every clean accuracy inside the overview range.
+- `git diff --stat 004edc3 7d334eb -- src configs` -> 4 comment lines in the ResNet configs, as recorded in Phase 07; the pilot is the only run at `004edc3`.
+- Kaggle run versions: `run_meta.json` -> torch `2.11.0+cu130`, torchvision `0.26.0+cu130`, Python `3.13.16`, `Tesla T4`: the same as the Colab runs.
+- Kaggle notebook dry run on CPU first (scratch clone, 1-epoch config): `done 1 of 1 runs`, export holds `raw/` (3 files), `run_folders/` (3 files), `runs.csv`; `git_dirty` False.
+- Lint/tests: `ruff format --check .` -> `85 files already formatted`; `ruff check .` -> `All checks passed!`; `pytest -q` -> `317 passed in 39.53s`.
+
+### Registry (`results/runs.csv`)
+| run_id | status | epochs | clean_accuracy | train_time_s | device | git_commit |
+|---|---|---|---|---|---|---|
+| cnn-standard-s0 | finished | 30 | 0.8404 | 620 | Tesla T4 | 004edc3 |
+| cnn-standard-s1 | finished | 30 | 0.8418 | 532 | Tesla T4 | 7d334eb |
+| cnn-standard-s2 | finished | 30 | 0.8517 | 576 | Tesla T4 | 7d334eb |
+| cnn-augmix-s0 | finished | 30 | 0.8368 | 3281 | Tesla T4 | 7d334eb |
+| cnn-augmix-s1 | finished | 30 | 0.8272 | 3343 | Tesla T4 | 7d334eb |
+| cnn-augmix-s2 | finished | 30 | 0.8378 | 3602 | Tesla T4 | 7d334eb |
+| cnn-corruption_aware-s0 | finished | 30 | 0.8202 | 816 | Tesla T4 | 7d334eb |
+| cnn-corruption_aware-s1 | finished | 30 | 0.8219 | 763 | Tesla T4 | 7d334eb |
+| cnn-corruption_aware-s2 | finished | 30 | 0.8273 | 869 | Tesla T4 | 7d334eb |
+| resnet18-standard-s0 | finished | 40 | 0.9364 | 992 | Tesla T4 | 7d334eb |
+| resnet18-standard-s1 | finished | 40 | 0.9368 | 954 | Tesla T4 | 7d334eb |
+| resnet18-standard-s2 | finished | 40 | 0.9375 | 1047 | Tesla T4 | 7d334eb |
+| resnet18-augmix-s0 | finished | 40 | 0.9372 | 4602 | Tesla T4 | 7d334eb |
+| resnet18-augmix-s1 | finished | 40 | 0.9367 | 4691 | Tesla T4 | 7d334eb |
+| resnet18-augmix-s2 | finished | 40 | 0.9369 | 2502 | Tesla T4 | 7d334eb |
+| resnet18-corruption_aware-s0 | finished | 40 | 0.9236 | 1343 | Tesla T4 | 7d334eb |
+| resnet18-corruption_aware-s1 | finished | 40 | 0.927 | 1288 | Tesla T4 | 7d334eb |
+| resnet18-corruption_aware-s2 | finished | 40 | 0.9233 | 1475 | Tesla T4 | 7d334eb |
+
+### Seed consistency (clean accuracy, points)
+| Config | max - min | sample std |
+|---|---|---|
+| cnn standard | 1.13 | 0.62 |
+| cnn augmix | 1.06 | 0.59 |
+| cnn corruption_aware | 0.71 | 0.37 |
+| resnet18 standard | 0.11 | 0.06 |
+| resnet18 augmix | 0.05 | 0.03 |
+| resnet18 corruption_aware | 0.37 | 0.21 |
+
+None above 1.5 points; nothing flagged.
+
+### Numbers produced
+- Clean accuracy per run: table above (source: `results/runs.csv`) [real]. Analysis numbers belong to Phase 09.
+
+### Changed from earlier phases
+- `docs/agent-prompts/DECISIONS.md` D9 and change log, `CONTRACTS.md` C1 and C2: the Kaggle exception, approved by the human on 2026-11-10.
+
+### Not done / deferred
+- `validation/phase-08.md` -> a separate validation session (VALIDATE V9 needs 2 `model_final.pt` files: Drive `runs/` for the Colab runs; the Kaggle run's is in its Kaggle output and in `~/Downloads/results.zip`).
+- Merge to `main` and push -> after validation, with the human's go-ahead.
+- Rename the unused partial Colab run on Drive (`runs/resnet18-augmix-s2`, 8 epochs) with an `_invalid-moved-to-kaggle` suffix -> when Drive is tidied; the human asked to leave Drive alone for now.
+
+### Known issues
+- **`resnet18-augmix-s2` ran on Kaggle, the other 17 on Colab.** Same commit, GPU model and torch version. Its epochs took about 63 s against about 120 s on Colab, because AugMix is limited by CPU and Kaggle gave more CPU; `train_time_s` and timing comparisons across platforms are not like for like. Disclose in the report (DECISIONS change log, 2026-11-10).
+- **Interrupted runs:** `cnn-augmix-s0` (Colab session 1 cut off after epoch 20) and `resnet18-standard-s2` (budget stop after epoch 2) were resumed, so they need not match uninterrupted runs bit for bit (DECISIONS change log, 2026-11-04). `resnet18-corruption_aware-s1` was evaluated in a later session after its first evaluation was cut off.
+- **Colab gave about 5 GPU hours a day and then refused**; one session ended at its maximum duration. Each case is in `results/RUNLOG.md`.
+
+### Decisions used
+- D3 final-epoch model; D4 epochs 30 and 40, seeds 0-2; D5 strategies S1-S3; D7 76 conditions; D9 with the Kaggle exception.
 
 ### Ideas for later
 - none

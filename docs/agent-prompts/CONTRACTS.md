@@ -68,12 +68,13 @@ cifar10-robustness-study/
 │   ├── 00_colab_setup.ipynb
 │   ├── 01_explore_data.ipynb
 │   ├── 02_analysis.ipynb
-│   └── run_on_colab.ipynb          # Phase 08 / 11: one-click stages
+│   ├── run_on_colab.ipynb          # Phase 08 / 11: one-click stages
+│   └── run_on_kaggle.ipynb         # Phase 08: runs on a Kaggle GPU (DECISIONS D9 exception)
 ├── results/                        # committed (small files only)
 │   ├── runs.csv
 │   ├── pilot_report.md             # Phase 07
 │   ├── pilot_logs/                 # Phase 07: console logs, run_meta.json of the pilot and timing runs, timing train logs
-│   ├── RUNLOG.md                   # Phase 08, one entry per Colab session
+│   ├── RUNLOG.md                   # Phase 08, one entry per Colab or Kaggle session
 │   ├── raw/{run_id}.csv
 │   ├── raw/{run_id}_confusion.npz
 │   ├── raw/{run_id}_train_log.csv
@@ -101,6 +102,8 @@ Not committed: `data/`, `runs/`, `dist/`, `results/smoke/`, `*.pt`, `.env`, `__p
 | `RESULTS_SYNC_DIR` | `scripts/run_all.sh`: folder to copy results into after each evaluated run | no copy |
 
 On Colab: `DATA_DIR=/content/data`, `RUNS_DIR=/content/drive/MyDrive/cifar10-robustness/runs`. In matrix mode also `RESULTS_DIR=/content/results`, outside the repo, because rebuilding the tracked `results/runs.csv` in the clone would mark later runs `git_dirty`; and `RESULTS_SYNC_DIR=/content/drive/MyDrive/cifar10-robustness/results`.
+
+On Kaggle (`notebooks/run_on_kaggle.ipynb`): `DATA_DIR=/tmp/kaggle-run/data`, `RUNS_DIR=/kaggle/working/runs`, `RESULTS_DIR=/kaggle/working/results`, `RESULTS_SYNC_DIR=/kaggle/working/export`. The export folder has the Drive `results/` layout, so `scripts.collect_results` imports it unchanged.
 
 ## C3. Names
 
