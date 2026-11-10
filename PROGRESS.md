@@ -686,7 +686,7 @@ All 18 runs are trained, evaluated, imported and checked. The orchestration entr
 - `collect_results` on each download: `exit 0`; last batch `1 evaluated runs checked, 6 files copied`, `resnet18-augmix-s2: finished, 40 epochs, commit 7d334eb, dirty False, Tesla T4, clean 0.9369`.
 - Scratch check script on `results/raw/` and the run folders: `18 runs; 1368 rows`; `epochs per model: {'simple_cnn': 30, 'resnet18': 40}`; `commits: {'7d334eb': 17, '004edc3': 1}`, all `Tesla T4`, `git_dirty` False, `finished`; every train log holds epochs 1..E once with the cosine `lr`; config_resolved.yaml identical per model apart from strategy and seed; no `CONFIG DIFF`; accuracy falls with severity in every run; every clean accuracy inside the overview range.
 - `git diff --stat 004edc3 7d334eb -- src configs` -> 4 comment lines in the ResNet configs, as recorded in Phase 07; the pilot is the only run at `004edc3`.
-- Kaggle run versions: `run_meta.json` -> torch `2.11.0+cu130`, torchvision `0.26.0+cu130`, Python `3.13.16`, `Tesla T4`: the same as the Colab runs.
+- Kaggle run versions: `run_meta.json` -> torch `2.11.0+cu130`, torchvision `0.26.0+cu130`, Python `3.13.16`, `Tesla T4`: the same as the 2026-11-04 Colab runs (the 2026-11-09 Colab runs used torch 2.14.1; see Known issues).
 - Kaggle notebook dry run on CPU first (scratch clone, 1-epoch config): `done 1 of 1 runs`, export holds `raw/` (3 files), `run_folders/` (3 files), `runs.csv`; `git_dirty` False.
 - Lint/tests: `ruff format --check .` -> `85 files already formatted`; `ruff check .` -> `All checks passed!`; `pytest -q` -> `317 passed in 39.53s`.
 
@@ -736,7 +736,8 @@ None above 1.5 points; nothing flagged.
 - Rename the unused partial Colab run on Drive (`runs/resnet18-augmix-s2`, 8 epochs) with an `_invalid-moved-to-kaggle` suffix -> when Drive is tidied; the human asked to leave Drive alone for now.
 
 ### Known issues
-- **`resnet18-augmix-s2` ran on Kaggle, the other 17 on Colab.** Same commit, GPU model and torch version. Its epochs took about 63 s against about 120 s on Colab, because AugMix is limited by CPU and Kaggle gave more CPU; `train_time_s` and timing comparisons across platforms are not like for like. Disclose in the report (DECISIONS change log, 2026-11-10).
+- **`resnet18-augmix-s2` ran on Kaggle, the other 17 on Colab.** Same commit and GPU model; same torch version as the 2026-11-04 Colab runs. Its epochs took about 63 s against about 120 s on Colab, because AugMix is limited by CPU and Kaggle gave more CPU; `train_time_s` and timing comparisons across platforms are not like for like. Disclose in the report (DECISIONS change log, 2026-11-10).
+- **Two torch versions in the matrix (found by `validation/phase-08.md`, V14).** Colab's preinstalled torch changed between sessions: torch `2.14.1+cu130` / torchvision `0.29.1+cu130` for the 7 runs of 2026-11-09 (`cnn-augmix-s1`, `cnn-augmix-s2`, `cnn-corruption_aware-s2`, `cnn-standard-s2`, `resnet18-augmix-s1`, `resnet18-corruption_aware-s2`, `resnet18-standard-s2`); torch `2.11.0+cu130` / torchvision `0.26.0+cu130` for the other 11 (Colab 2026-11-04 and Kaggle). Allowed by DECISIONS D9 (platform versions, recorded in `run_meta.json`). Disclose in the report's limitations.
 - **Interrupted runs:** `cnn-augmix-s0` (Colab session 1 cut off after epoch 20) and `resnet18-standard-s2` (budget stop after epoch 2) were resumed, so they need not match uninterrupted runs bit for bit (DECISIONS change log, 2026-11-04). `resnet18-corruption_aware-s1` was evaluated in a later session after its first evaluation was cut off.
 - **Colab gave about 5 GPU hours a day and then refused**; one session ended at its maximum duration. Each case is in `results/RUNLOG.md`.
 
