@@ -41,21 +41,25 @@ Differences are paired by seed and use only the seeds both sides have. `within s
 
 | Model | Strategy | Metric | Standard | Strategy value | Strategy - standard | Per seed | Seed noise |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| simple_cnn | augmix | clean_acc | 84.5% | 83.4% | -1.1 pp | s0: -0.4 pp, s1: -1.5 pp, s2: -1.4 pp | beyond seed noise |
 | simple_cnn | augmix | mean_corrupted_acc | 59.7% | 67.0% | +7.3 pp | s0: +8.0 pp, s1: +6.5 pp, s2: +7.4 pp | beyond seed noise |
 | simple_cnn | augmix | mean_abs_degradation | 24.7% | 16.4% | -8.4 pp | s0: -8.3 pp, s1: -7.9 pp, s2: -8.8 pp | beyond seed noise |
 | simple_cnn | augmix | mean_rel_degradation | 29.3% | 19.6% | -9.6 pp | s0: -9.8 pp, s1: -9.1 pp, s2: -10.0 pp | beyond seed noise |
 | simple_cnn | augmix | mCE | 100.0% | 82.9% | -17.1 pp | s0: -18.3 pp, s1: -15.9 pp, s2: -17.0 pp | beyond seed noise |
 | simple_cnn | augmix | relative_mCE | 100.0% | 63.6% | -36.4 pp | s0: -34.0 pp, s1: -37.6 pp, s2: -37.4 pp | beyond seed noise |
+| simple_cnn | corruption_aware | clean_acc | 84.5% | 82.3% | -2.2 pp | s0: -2.0 pp, s1: -2.0 pp, s2: -2.4 pp | beyond seed noise |
 | simple_cnn | corruption_aware | mean_corrupted_acc | 59.7% | 74.8% | +15.1 pp | s0: +14.6 pp, s1: +14.9 pp, s2: +15.7 pp | beyond seed noise |
 | simple_cnn | corruption_aware | mean_abs_degradation | 24.7% | 7.5% | -17.2 pp | s0: -16.7 pp, s1: -16.9 pp, s2: -18.2 pp | beyond seed noise |
 | simple_cnn | corruption_aware | mean_rel_degradation | 29.3% | 9.1% | -20.2 pp | s0: -19.6 pp, s1: -19.8 pp, s2: -21.1 pp | beyond seed noise |
 | simple_cnn | corruption_aware | mCE | 100.0% | 68.5% | -31.5 pp | s0: -30.1 pp, s1: -31.6 pp, s2: -32.7 pp | beyond seed noise |
 | simple_cnn | corruption_aware | relative_mCE | 100.0% | 36.1% | -63.9 pp | s0: -60.7 pp, s1: -63.6 pp, s2: -67.5 pp | beyond seed noise |
+| resnet18 | augmix | clean_acc | 93.7% | 93.7% | +0.0 pp | s0: +0.1 pp, s1: -0.0 pp, s2: -0.1 pp | within seed noise |
 | resnet18 | augmix | mean_corrupted_acc | 71.6% | 83.7% | +12.1 pp | s0: +12.1 pp, s1: +12.4 pp, s2: +11.9 pp | beyond seed noise |
 | resnet18 | augmix | mean_abs_degradation | 22.1% | 10.0% | -12.1 pp | s0: -12.0 pp, s1: -12.5 pp, s2: -12.0 pp | beyond seed noise |
 | resnet18 | augmix | mean_rel_degradation | 23.6% | 10.6% | -13.0 pp | s0: -12.8 pp, s1: -13.3 pp, s2: -12.7 pp | beyond seed noise |
 | resnet18 | augmix | mCE | 68.5% | 40.7% | -27.8 pp | s0: -28.2 pp, s1: -27.8 pp, s2: -27.3 pp | beyond seed noise |
 | resnet18 | augmix | relative_mCE | 90.7% | 42.7% | -48.1 pp | s0: -48.9 pp, s1: -47.9 pp, s2: -47.5 pp | beyond seed noise |
+| resnet18 | corruption_aware | clean_acc | 93.7% | 92.5% | -1.2 pp | s0: -1.3 pp, s1: -1.0 pp, s2: -1.4 pp | beyond seed noise |
 | resnet18 | corruption_aware | mean_corrupted_acc | 71.6% | 87.6% | +16.0 pp | s0: +16.3 pp, s1: +15.8 pp, s2: +15.9 pp | beyond seed noise |
 | resnet18 | corruption_aware | mean_abs_degradation | 22.1% | 4.9% | -17.2 pp | s0: -17.5 pp, s1: -16.8 pp, s2: -17.3 pp | beyond seed noise |
 | resnet18 | corruption_aware | mean_rel_degradation | 23.6% | 5.3% | -18.3 pp | s0: -18.7 pp, s1: -17.8 pp, s2: -18.4 pp | beyond seed noise |
@@ -100,6 +104,19 @@ Accuracy gain per family:
 | resnet18 | corruption_aware | unseen_same_family | 69.6% | 86.5% | +16.9 pp | s0: +17.4 pp, s1: +16.6 pp, s2: +16.7 pp | beyond seed noise |
 | resnet18 | corruption_aware | unseen_other_family | 79.4% | 87.0% | +7.5 pp | s0: +7.5 pp, s1: +7.5 pp, s2: +7.5 pp | beyond seed noise |
 
+Gain on seen corruptions minus gain on an unseen group (seed noise: stds of the per-seed gains):
+
+| Model | Strategy | Seen gain - gain on | Difference | Per seed | Seed noise |
+| --- | --- | --- | --- | --- | --- |
+| simple_cnn | augmix | unseen_same_family | -0.9 pp | s0: -0.8 pp, s1: -1.3 pp, s2: -0.8 pp | within seed noise |
+| simple_cnn | augmix | unseen_other_family | +1.9 pp | s0: +2.7 pp, s1: +1.2 pp, s2: +1.8 pp | beyond seed noise |
+| simple_cnn | corruption_aware | unseen_same_family | +5.2 pp | s0: +5.3 pp, s1: +5.3 pp, s2: +5.1 pp | beyond seed noise |
+| simple_cnn | corruption_aware | unseen_other_family | +10.3 pp | s0: +11.0 pp, s1: +10.0 pp, s2: +10.1 pp | beyond seed noise |
+| resnet18 | augmix | unseen_same_family | -0.5 pp | s0: -1.1 pp, s1: -0.2 pp, s2: -0.1 pp | within seed noise |
+| resnet18 | augmix | unseen_other_family | +6.8 pp | s0: +6.4 pp, s1: +7.3 pp, s2: +6.6 pp | beyond seed noise |
+| resnet18 | corruption_aware | unseen_same_family | +3.6 pp | s0: +3.1 pp, s1: +3.8 pp, s2: +3.9 pp | beyond seed noise |
+| resnet18 | corruption_aware | unseen_other_family | +13.0 pp | s0: +13.0 pp, s1: +12.9 pp, s2: +13.1 pp | beyond seed noise |
+
 ## RQ5: corruption families (mean absolute drop)
 
 | Model | Strategy | noise | blur | weather | digital | Worst family | Mildest family | Worst corruption | Mildest corruption | Worst - runner-up | Seed noise |
@@ -110,3 +127,38 @@ Accuracy gain per family:
 | resnet18 | standard | +39.5 pp | +25.0 pp | +14.3 pp | +14.0 pp | noise | digital | gaussian_noise | brightness | +14.6 pp | beyond seed noise |
 | resnet18 | augmix | +16.0 pp | +9.8 pp | +7.8 pp | +7.8 pp | noise | weather | glass_blur | brightness | +6.2 pp | beyond seed noise |
 | resnet18 | corruption_aware | +4.2 pp | +6.3 pp | +5.5 pp | +3.8 pp | blur | digital | glass_blur | contrast | +0.8 pp | beyond seed noise |
+
+Other rank gaps (runner-up - third, second mildest - mildest; mean absolute drop):
+
+| Model | Strategy | Kind | Gap | Pair | Mean gap | Per seed | Seed noise |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| simple_cnn | standard | family | second_gap | blur - weather | +7.1 pp | s0: +7.4 pp, s1: +7.4 pp, s2: +6.6 pp | beyond seed noise |
+| simple_cnn | standard | family | mildest_gap | weather - digital | +5.9 pp | s0: +5.4 pp, s1: +6.2 pp, s2: +6.2 pp | beyond seed noise |
+| simple_cnn | standard | corruption | worst_gap | gaussian_noise - glass_blur | +0.2 pp | s0: -0.3 pp, s1: -0.0 pp, s2: +1.0 pp | within seed noise |
+| simple_cnn | standard | corruption | second_gap | glass_blur - shot_noise | +9.4 pp | s0: +10.2 pp, s1: +9.2 pp, s2: +8.8 pp | beyond seed noise |
+| simple_cnn | standard | corruption | mildest_gap | jpeg_compression - brightness | +8.2 pp | s0: +7.9 pp, s1: +8.0 pp, s2: +8.7 pp | beyond seed noise |
+| simple_cnn | augmix | family | second_gap | blur - weather | +1.2 pp | s0: +1.2 pp, s1: +0.7 pp, s2: +1.5 pp | beyond seed noise |
+| simple_cnn | augmix | family | mildest_gap | weather - digital | +3.2 pp | s0: +2.7 pp, s1: +3.7 pp, s2: +3.2 pp | beyond seed noise |
+| simple_cnn | augmix | corruption | worst_gap | glass_blur - gaussian_noise | +2.6 pp | s0: +3.9 pp, s1: +1.0 pp, s2: +3.0 pp | beyond seed noise |
+| simple_cnn | augmix | corruption | second_gap | gaussian_noise - shot_noise | +8.7 pp | s0: +7.8 pp, s1: +9.2 pp, s2: +9.0 pp | beyond seed noise |
+| simple_cnn | augmix | corruption | mildest_gap | defocus_blur - brightness | +2.5 pp | s0: +2.3 pp, s1: +2.4 pp, s2: +2.7 pp | beyond seed noise |
+| simple_cnn | corruption_aware | family | second_gap | weather - noise | +2.2 pp | s0: +2.3 pp, s1: +2.5 pp, s2: +1.8 pp | beyond seed noise |
+| simple_cnn | corruption_aware | family | mildest_gap | noise - digital | +0.4 pp | s0: +0.4 pp, s1: +0.3 pp, s2: +0.5 pp | beyond seed noise |
+| simple_cnn | corruption_aware | corruption | worst_gap | glass_blur - pixelate | +7.8 pp | s0: +8.1 pp, s1: +8.9 pp, s2: +6.4 pp | beyond seed noise |
+| simple_cnn | corruption_aware | corruption | second_gap | pixelate - snow | +1.7 pp | s0: +1.2 pp, s1: +1.4 pp, s2: +2.4 pp | beyond seed noise |
+| simple_cnn | corruption_aware | corruption | mildest_gap | defocus_blur - brightness | +1.4 pp | s0: +1.6 pp, s1: +1.3 pp, s2: +1.3 pp | beyond seed noise |
+| resnet18 | standard | family | second_gap | blur - weather | +10.7 pp | s0: +12.2 pp, s1: +9.8 pp, s2: +10.1 pp | beyond seed noise |
+| resnet18 | standard | family | mildest_gap | weather - digital | +0.2 pp | s0: -0.1 pp, s1: +0.4 pp, s2: +0.3 pp | within seed noise |
+| resnet18 | standard | corruption | worst_gap | gaussian_noise - glass_blur | +0.5 pp | s0: -3.9 pp, s1: +3.0 pp, s2: +2.3 pp | within seed noise |
+| resnet18 | standard | corruption | second_gap | glass_blur - impulse_noise | +9.4 pp | s0: +13.7 pp, s1: +7.6 pp, s2: +7.0 pp | beyond seed noise |
+| resnet18 | standard | corruption | mildest_gap | fog - brightness | +6.3 pp | s0: +6.3 pp, s1: +6.0 pp, s2: +6.6 pp | beyond seed noise |
+| resnet18 | augmix | family | second_gap | blur - digital | +2.0 pp | s0: +2.3 pp, s1: +1.5 pp, s2: +2.1 pp | beyond seed noise |
+| resnet18 | augmix | family | mildest_gap | digital - weather | +0.0 pp | s0: -0.3 pp, s1: +0.3 pp, s2: +0.1 pp | within seed noise |
+| resnet18 | augmix | corruption | worst_gap | glass_blur - gaussian_noise | +6.9 pp | s0: +5.2 pp, s1: +8.8 pp, s2: +6.6 pp | beyond seed noise |
+| resnet18 | augmix | corruption | second_gap | gaussian_noise - impulse_noise | +5.9 pp | s0: +7.1 pp, s1: +4.2 pp, s2: +6.4 pp | beyond seed noise |
+| resnet18 | augmix | corruption | mildest_gap | defocus_blur - brightness | +1.0 pp | s0: +1.2 pp, s1: +0.8 pp, s2: +1.1 pp | beyond seed noise |
+| resnet18 | corruption_aware | family | second_gap | weather - noise | +1.3 pp | s0: +1.4 pp, s1: +1.0 pp, s2: +1.4 pp | beyond seed noise |
+| resnet18 | corruption_aware | family | mildest_gap | noise - digital | +0.4 pp | s0: +0.4 pp, s1: +0.5 pp, s2: +0.3 pp | beyond seed noise |
+| resnet18 | corruption_aware | corruption | worst_gap | glass_blur - pixelate | +6.1 pp | s0: +5.7 pp, s1: +6.4 pp, s2: +6.3 pp | beyond seed noise |
+| resnet18 | corruption_aware | corruption | second_gap | pixelate - motion_blur | +0.6 pp | s0: -0.1 pp, s1: +1.3 pp, s2: +0.5 pp | beyond seed noise |
+| resnet18 | corruption_aware | corruption | mildest_gap | brightness - contrast | +0.2 pp | s0: +0.1 pp, s1: +0.5 pp, s2: +0.1 pp | beyond seed noise |

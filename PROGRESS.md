@@ -814,3 +814,69 @@ All [real], 3 seeds each, mean ± std (ddof=1). Source: `results/tables/main_res
 
 ### Ideas for later
 - none
+
+## Phase 10: report  (2026-11-11, branch phase-10-report, commit: the one titled "phase 10: report and README")
+
+### Built
+- `scripts/build_report.py`: `python -m scripts.build_report [--quiet]`. Fills `report/report.template.md` -> `report/report.md` and `README.template.md` -> `README.md` from `$RESULTS_DIR/tables/report_numbers.json`. Formats `pct1`, `pp1`, `negpp1` (the negated difference, for prose that states the direction in words; fails if the value is positive), `f1`, `f3`, `int`, and no format for text and yes/no values only. Fails on: an unknown key or format, a null value, PARTIAL data, a malformed placeholder, and any digit outside a placeholder that no `ALLOW_LIST` entry covers. Nothing is written unless both templates succeed. Every allow-list hit is printed with its reason.
+- The allow-list has 39 entries, each bound to its context (for example `40 epochs`, `batch size 128`, `probability 0.5`, `Section 5.6`, `[3]`, run ids, `ResNet-18`), not bare numbers. Reference entries are exempt only line by line ("Surname, X. ... (year).").
+- `report/report.template.md`: the report in the BUILD order (Abstract; 1 Introduction; 2 Related work; 3 Methodology; 4 Experimental setup; 5 Results, RQ1-RQ5 with a verdict each, plus 5.6 on class collapse; 6 Discussion; 7 Limitations; 8 Conclusion and future work; References). All 8 figures embedded and cited.
+- `README.template.md`: title and one-line summary (overview 17), fig2 and fig7, the 6-row results table, 5 findings, reproduce steps (view, re-run analysis, one Colab run, everything), layout, citations, licence, "Live demo" placeholder line for Phase 11.
+- `report/report.md`, `README.md`: generated.
+- `src/analysis.py`: new report numbers (see Changed from earlier phases). `results/tables/report_numbers.json` now has 1105 keys (was 670), 0 null.
+- `tests/test_build_report.py`: 28 test cases (formats, failures, the guard with context-bound allow-list, nothing written on failure, committed outputs equal a rebuild, all 8 figures cited). `tests/test_analysis.py`: 6 new tests for the new keys.
+
+### How to run it
+    .venv/bin/python -m src.analysis
+    .venv/bin/python -m scripts.make_figures
+    .venv/bin/python -m scripts.build_report
+    # optional PDF, pandoc is not installed here (not run):
+    cd report && pandoc report.md -o report.pdf --resource-path=.
+
+### Verified (with output)
+- `python -m scripts.build_report` -> exit 0, `wrote report/report.md`, `wrote README.md`, the allow-list hits printed; every allow-list entry is used at least once (checked with `check_digits` over both templates -> `unused: []`).
+- Guard, in a scratch copy of the repo: `The model has an accuracy of 91.2% on fog.` appended to the template -> `ERROR: digits outside placeholders ...` `report/report.template.md:255`, exit 1; the same sentence in the abstract -> exit 1; `{{no.such.key}}` -> `ERROR: report/report.template.md: unknown report number key(s): no.such.key`, exit 1. A first version exempted the whole References section, so text appended at the end passed; that is why reference entries are now exempt line by line, with a test.
+- Rebuild: `python -m scripts.build_report` twice -> identical outputs; `test_committed_outputs_match_a_rebuild` passes.
+- Analysis outputs: after the changes, `main_results.csv/.md`, `per_corruption.csv`, `per_severity.csv`, `per_family.csv`, `seen_unseen.csv/.md` are byte-identical to `main` (`cmp`); none of the 670 earlier keys changed value (`changed []`). `python -m scripts.make_figures` -> no figure file changed (`git status`).
+- Citations: all 7 checked in this session against publisher or proceedings pages (CVF and Crossref, arXiv API, ICLR virtual site and ML Anthology for the OpenReview ids, NeurIPS proceedings, PMLR) and the Zenodo record of CIFAR-10-C; full author lists and pages filled in for [5] and [7]. OpenReview and dblp blocked automated access, so the ICLR entries were checked through arXiv and ML Anthology.
+- RQ verdicts against `rq_answers.md` and the seed-noise rule: RQ1 supported, RQ2 partly supported, RQ3 supported, RQ4 supported, RQ5 supported for standard training. Each verdict sentence quotes the seed-noise labels it rests on by placeholder.
+- Every DECISIONS change-log entry is disclosed in Limitations: initial choices fixed before the runs; JPEG mismatch; resumed runs; C5/C6 (shortened runs labelled as tests, run metadata); ResNet-18 epochs at 40 from measured time; D9 local pins; C1 pilot logs; C2 environment variables; the Kaggle run.
+- Length: `sed '/^## References/,$d' report/report.md | wc -w` -> `5401` (tables included).
+- Lint/tests: `ruff format --check .` -> `97 files already formatted`; `ruff check .` -> `All checks passed!`; `DATA_DIR=<repo>/data pytest -q` -> `378 passed in 91.17s`.
+
+### Numbers produced
+All in `results/tables/report_numbers.json` [real]; new ones written by `src/analysis.py` (documented in `report_numbers.md`). Highlights used in the text:
+- Training time of all 18 runs: 9.2 GPU hours (`compute.train_hours_total`, from `results/runs.csv`).
+- Clean-accuracy change against standard: Simple CNN AugMix -1.1 pp, Simple CNN corruption-aware -2.2 pp, ResNet-18 corruption-aware -1.2 pp (all beyond seed noise), ResNet-18 AugMix +0.0 pp (within seed noise) (`rq3.*.clean_acc.diff_vs_standard`).
+- RQ5 ties found: worst corruption under standard training, Gaussian noise vs glass blur, within seed noise for both models; mildest family for ResNet-18 standard (digital vs weather) and ResNet-18 AugMix (weather vs digital), within seed noise.
+- ResNet-18 standard, Gaussian noise severity 5: 50.9% of predictions "frog", 30.2% "bird" (`confusion.*`).
+
+### Changed from earlier phases
+- `src/analysis.py`, as BUILD asks for numbers the report needs ("add it to src/analysis.py"). Earlier outputs unchanged (see Verified). New keys:
+  - `rq3.*.clean_acc.diff_vs_standard` (clean-accuracy cost of each strategy);
+  - `rq4.*.seen_minus_{group}_gain` (gain on seen minus gain on an unseen group, paired by seed, with seed-noise label), and a second RQ4 table in `rq_answers.md`;
+  - `rq5.*.{family,corruption}_{second,mildest}_gap`, `rq5.*.corruption_worst_gap`, and `rq5.{runner_up,third,second_mildest}_{family,corruption}.*`, with a second RQ5 table in `rq_answers.md`;
+  - `groups.*` (accuracy and drop per D6 analysis group);
+  - `setup.*` (parameter counts, GPU, Python/torch/torchvision versions, commits, dirty runs) and `compute.*` (training time in total and per configuration, Colab-only time ratios against standard), read from `results/runs.csv`; left out with a message if that file is missing;
+  - `confusion.*` (two most predicted classes and their share of predictions, seed mean, for the fig 6 conditions), read from `raw/{run_id}_confusion.npz`.
+  The module docstring now says it also reads the registry and the confusion files.
+- `README.md`: the Phase 00 placeholder is replaced by the generated README.
+
+### Not done / deferred
+- `report/report.pdf`: pandoc is not installed on this machine; command above, for the human.
+- `validation/phase-10.md` -> a separate validation session.
+- Live demo link in the README -> Phase 11.
+- Not pushed or merged.
+
+### Known issues
+- `--quiet` on `scripts.build_report` is not in CONTRACTS C5 (C5 lists the command without flags; the default behaviour matches it).
+- `compute.resnet18.augmix.train_minutes` mixes platforms (the Kaggle run trained faster); the report says so and uses the Colab-only value for time ratios. `KAGGLE_RUNS` in `src/analysis.py` lists the D9 exception by hand.
+- README step 3 for a local GPU (`src.train`/`src.evaluate`) and step 4 were not run in this phase; they are the Phase 05-08 commands. Steps 1 and 2 need no GPU.
+- The report is about 5,400 words including its tables, near the top of BUILD's range.
+
+### Decisions used
+- D1-D9, D11 as stated in report Sections 3-4 and 7; the full DECISIONS change log is disclosed in Limitations.
+- D8: verdicts use the seed-noise rule of Phase 09 (mean paired difference vs the larger seed std).
+
+### Ideas for later
+- none

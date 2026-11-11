@@ -1,7 +1,10 @@
 """Aggregate result CSVs into tables (python -m src.analysis [--allow-partial]).
 
-Reads only `$RESULTS_DIR/raw/{run_id}.csv` (CONTRACTS C7) and writes every C9 table to
-`$RESULTS_DIR/tables/`. It needs no run folder, checkpoint, GPU or network.
+Reads `$RESULTS_DIR/raw/{run_id}.csv` (CONTRACTS C7) and writes every C9 table to
+`$RESULTS_DIR/tables/`. It needs no run folder, checkpoint, GPU or network. For the report
+(Phase 10) it also reads `raw/{run_id}_confusion.npz` (which classes the models predict) and the
+run registry `$RESULTS_DIR/runs.csv` (C8: parameters, software versions, training time). Without
+the registry the `setup.*` and `compute.*` numbers are left out.
 
 Without `--allow-partial` it refuses to run unless all 18 runs of the matrix are present. With
 the flag, every output has `_PARTIAL` in its file name, a `data_status` column (CSV), a `PARTIAL`
@@ -41,6 +44,7 @@ import pandas as pd
 from src import metrics
 from src.constants import (
     ANALYSIS_GROUPS,
+    CLASS_NAMES,
     CORRUPTION_TO_FAMILY,
     CORRUPTIONS,
     FAMILIES,
@@ -84,6 +88,19 @@ COMPARED_METRICS = [
     "relative_mCE",
 ]
 CORRUPTION_TO_GROUP = {c: g for g, cs in ANALYSIS_GROUPS.items() for c in cs}
+KAGGLE_RUNS: tuple[str, ...] = ("resnet18-augmix-s2",)  # DECISIONS D9 exception, not on Colab
+CONFUSION_CONDITIONS: tuple[str, ...] = ("clean__s0", "fog__s5", "gaussian_noise__s5")  # fig 6
+# Rank gaps in RQ5 besides the worst family gap: (kinds, key, rank of the upper, of the lower).
+RQ5_RANK_GAPS: tuple[tuple[tuple[str, ...], str, int, int], ...] = (
+    (("corruption",), "worst_gap", 0, 1),  # worst minus runner-up
+    (("family", "corruption"), "second_gap", 1, 2),  # runner-up minus third
+    (("family", "corruption"), "mildest_gap", -2, -1),  # second mildest minus mildest
+)
+RQ5_RANK_NAMES: tuple[tuple[str, int], ...] = (
+    ("runner_up", 1),
+    ("third", 2),
+    ("second_mildest", -2),
+)
 CONDITIONS = [("clean", 0)] + [(c, s) for c in CORRUPTIONS for s in SEVERITIES]
 
 
@@ -332,6 +349,26 @@ def add_main_numbers(numbers: Numbers, summary: pd.DataFrame) -> None:
                 numbers.add(key, value, f"{metric} of {config} ({kind})", formula, source)
 
 
+def add_group_numbers(numbers: Numbers, seen_unseen: pd.DataFrame) -> None:
+    """Record `groups.*`: accuracy and absolute drop of each config on each D6 analysis group."""
+    source = "seen_unseen.csv"
+    for row in seen_unseen.itertuples(index=False):
+        prefix = f"groups.{_short(row.model)}.{row.strategy}.{row.analysis_group}"
+        config = f"{row.model} + {row.strategy}, {row.analysis_group}"
+        for metric in ("accuracy", "abs_degradation"):
+            for kind in ("mean", "std"):
+                formula = f"{kind} over seeds of the group's {metric}"
+                formula += ", ddof=1" if kind == "std" else ""
+                value = getattr(row, f"{metric}_{kind}")
+                numbers.add(
+                    f"{prefix}.{metric}.{kind}",
+                    value,
+                    f"{metric} of {config} ({kind})",
+                    formula,
+                    source,
+                )
+
+
 def _record_rq1_drops(
     numbers: Numbers, prefix: str, config_name: str, config: pd.DataFrame
 ) -> list[float]:
@@ -405,7 +442,7 @@ def _rq3_metric_rows(
 ) -> list[list[Any]]:
     """Record each main metric of a strategy against standard; return the table rows."""
     rows = []
-    for metric in COMPARED_METRICS:
+    for metric in ["clean_acc", *COMPARED_METRICS]:
         base = by_seed(run_table, metric, model=model, strategy="standard")
         alt = by_seed(run_table, metric, model=model, strategy=strategy)
         if base.empty or alt.empty:
@@ -459,12 +496,13 @@ def answer_rq3(numbers: Numbers, run_table: pd.DataFrame, families: pd.DataFrame
 
 
 def answer_rq4(numbers: Numbers, groups: pd.DataFrame) -> list[str]:
-    """RQ4: accuracy gain against standard on seen and unseen corruption groups."""
+    """RQ4: accuracy gain against standard on each group, and seen gain minus unseen gain."""
     header = ["Model", "Strategy", "Group", "Standard", "Strategy value", "Gain vs standard"]
     header += ["Per seed", "Seed noise"]
-    rows = []
+    rows, gap_rows = [], []
     for model in MODELS:
         for strategy in ALTERNATIVE_STRATEGIES:
+            gains = {}
             for group in ANALYSIS_GROUPS:
                 where = {"model": model, "analysis_group": group}
                 base = by_seed(groups, "accuracy", strategy="standard", **where)
@@ -472,12 +510,40 @@ def answer_rq4(numbers: Numbers, groups: pd.DataFrame) -> list[str]:
                 if base.empty or alt.empty:
                     continue
                 c = Comparison(alt, base)
+                gains[group] = c.seed_diffs
                 meaning = f"{strategy} minus standard, accuracy on {group}, {model}"
                 key = f"rq4.{_short(model)}.{strategy}.{group}_gain_vs_standard"
                 numbers.add_comparison(key, c, meaning, "seen_unseen.csv")
                 cells = [model, strategy, group, pct(base.mean()), pct(alt.mean()), pp(c.diff)]
                 rows.append([*cells, _seed_cell(c), c.verdict])
-    return ["## RQ4: seen and unseen corruptions", "", *markdown_table(header, rows)]
+            gap_rows += _rq4_gain_gaps(numbers, model, strategy, gains)
+    gap_header = ["Model", "Strategy", "Seen gain - gain on", "Difference", "Per seed"]
+    return [
+        "## RQ4: seen and unseen corruptions",
+        "",
+        *markdown_table(header, rows),
+        "",
+        "Gain on seen corruptions minus gain on an unseen group (seed noise: stds of the per-seed "
+        "gains):",
+        "",
+        *markdown_table([*gap_header, "Seed noise"], gap_rows),
+    ]
+
+
+def _rq4_gain_gaps(
+    numbers: Numbers, model: str, strategy: str, gains: dict[str, pd.Series]
+) -> list[list[Any]]:
+    """Record seen gain minus each unseen group's gain, paired by seed; return table rows."""
+    rows = []
+    if "seen" not in gains:
+        return rows
+    for group in (g for g in ANALYSIS_GROUPS if g != "seen" and g in gains):
+        c = Comparison(gains["seen"], gains[group])
+        meaning = f"Gain vs standard on seen minus gain on {group}, {strategy}, {model}"
+        key = f"rq4.{_short(model)}.{strategy}.seen_minus_{group}_gain"
+        numbers.add_comparison(key, c, meaning, "seen_unseen.csv")
+        rows.append([model, strategy, group, pp(c.diff), _seed_cell(c), c.verdict])
+    return rows
 
 
 def _ranked(summary: pd.DataFrame, model: str, strategy: str, column: str) -> pd.Series:
@@ -505,6 +571,42 @@ def _record_rq5_ranks(
             key = f"rq5.{label}_{kind}.{short}.{strategy}"
             meaning = f"The {label} {kind} by mean drop, {config}"
             numbers.add(key, name, meaning, f"{how} of the mean absolute degradation", source)
+        for label, rank in RQ5_RANK_NAMES:
+            key = f"rq5.{label}_{kind}.{short}.{strategy}"
+            meaning = f"The {label.replace('_', ' ')} {kind} by mean drop, {config}"
+            how = f"position {rank} of the {kind}s sorted by mean drop, largest first"
+            numbers.add(key, values.index[rank], meaning, how, source)
+
+
+def _rq5_rank_gap_rows(
+    numbers: Numbers,
+    model: str,
+    strategy: str,
+    ranked: dict[str, pd.Series],
+    per_run: dict[str, pd.DataFrame],
+) -> list[list[Any]]:
+    """Record runner-up - third and second mildest - mildest, per family and corruption."""
+    rows = []
+    config = f"{model} + {strategy}"
+    for kind, source in (("family", "per_family.csv"), ("corruption", "per_corruption.csv")):
+        order = ranked[kind].index
+        for kinds, label, upper, lower in RQ5_RANK_GAPS:
+            if kind not in kinds:
+                continue
+            drops = [
+                by_seed(
+                    per_run[kind], "abs_degradation", model=model, strategy=strategy, **{kind: n}
+                )
+                for n in (order[upper], order[lower])
+            ]
+            c = Comparison(*drops)
+            pair = f"{order[upper]} - {order[lower]}"
+            meaning = f"Drop gap {pair} ({kind} {label.replace('_', ' ')}), {config}"
+            numbers.add_comparison(
+                f"rq5.{_short(model)}.{strategy}.{kind}_{label}", c, meaning, source
+            )
+            rows.append([model, strategy, kind, label, pair, pp(c.diff), _seed_cell(c), c.verdict])
+    return rows
 
 
 def answer_rq5(
@@ -512,17 +614,19 @@ def answer_rq5(
     per_family: pd.DataFrame,
     per_corruption: pd.DataFrame,
     families: pd.DataFrame,
+    corruptions: pd.DataFrame,
 ) -> list[str]:
-    """RQ5: drop per family, the worst and mildest family and corruption, and the worst gap."""
+    """RQ5: drop per family, the worst and mildest family and corruption, and rank gaps."""
     header = ["Model", "Strategy", *MAIN_FAMILIES, "Worst family", "Mildest family"]
     header += ["Worst corruption", "Mildest corruption", "Worst - runner-up", "Seed noise"]
-    rows = []
+    rows, gap_rows = [], []
     for model, strategy in _configs(per_family):
         ranked = {
             "family": _ranked(per_family, model, strategy, "family"),
             "corruption": _ranked(per_corruption, model, strategy, "corruption"),
         }
         _record_rq5_ranks(numbers, model, strategy, ranked)
+        per_run = {"family": families, "corruption": corruptions}
         order = ranked["family"].index
         drops = [
             by_seed(families, "abs_degradation", model=model, strategy=strategy, family=name)
@@ -545,7 +649,18 @@ def answer_rq5(
                 c.verdict,
             ]
         )
-    return ["## RQ5: corruption families (mean absolute drop)", "", *markdown_table(header, rows)]
+        # After the worst-gap keys, so the earlier keys keep their order in report_numbers.md.
+        gap_rows += _rq5_rank_gap_rows(numbers, model, strategy, ranked, per_run)
+    gap_header = ["Model", "Strategy", "Kind", "Gap", "Pair", "Mean gap", "Per seed", "Seed noise"]
+    return [
+        "## RQ5: corruption families (mean absolute drop)",
+        "",
+        *markdown_table(header, rows),
+        "",
+        "Other rank gaps (runner-up - third, second mildest - mildest; mean absolute drop):",
+        "",
+        *markdown_table(gap_header, gap_rows),
+    ]
 
 
 @dataclass(frozen=True)
@@ -648,6 +763,113 @@ def add_meta_numbers(numbers: Numbers, stamp: Stamp) -> None:
     numbers.add("meta.std_ddof", SEED_STD_DDOF, "ddof of every std", "constant", "src/analysis.py")
 
 
+def _counted(values: pd.Series) -> str:
+    """Return each distinct value with its run count, most common first, e.g. `a (2 runs)`."""
+    counts = values.astype(str).value_counts()
+    counts = counts.sort_index().sort_values(ascending=False, kind="stable")
+    return ", ".join(f"{v} ({n} run{'' if n == 1 else 's'})" for v, n in counts.items())
+
+
+def add_setup_numbers(numbers: Numbers, registry: pd.DataFrame) -> None:
+    """Record `setup.*`: parameter counts, hardware, software versions and commits of the runs."""
+    source = "results/runs.csv"
+    for model in MODELS:
+        params = registry.loc[registry["model"] == model, "n_params"].unique()
+        if len(params) != 1:
+            raise ValueError(f"runs.csv: {model} runs disagree on n_params: {sorted(params)}")
+        meaning = f"Trainable parameters of {model}"
+        numbers.add(f"setup.n_params.{_short(model)}", int(params[0]), meaning, "n_params", source)
+    numbers.add("setup.n_runs", len(registry), "Runs in the registry", "rows of the 18", source)
+    for column in ("device_name", "torch_version", "torchvision_version", "python_version"):
+        meaning = f"Distinct {column} values with their run counts"
+        numbers.add(f"setup.{column}s", _counted(registry[column]), meaning, "value counts", source)
+    commits = registry["git_commit"].str[:7]
+    meaning = "Distinct commits (7 characters) with their run counts"
+    numbers.add("setup.git_commits", _counted(commits), meaning, "value counts", source)
+    meaning = "Runs with uncommitted changes"
+    dirty = int(registry["git_dirty"].astype(str).str.lower().eq("true").sum())
+    numbers.add("setup.n_dirty_runs", dirty, meaning, "count of git_dirty", source)
+
+
+def add_compute_numbers(numbers: Numbers, registry: pd.DataFrame) -> None:
+    """Record `compute.*`: training time in total and per configuration (DECISIONS D9 caveat)."""
+    source = "results/runs.csv"
+    hours = float(registry["train_time_s"].sum()) / 3600
+    meaning = "Training time of all runs, hours (finished epochs only, no evaluation or setup)"
+    numbers.add("compute.train_hours_total", hours, meaning, "sum(train_time_s) / 3600", source)
+    numbers.add(
+        "compute.kaggle_runs", ", ".join(KAGGLE_RUNS), "Runs trained on Kaggle", "D9", source
+    )
+    colab = registry[~registry["run_id"].isin(KAGGLE_RUNS)]
+    for model in MODELS:
+        short = _short(model)
+        base = colab[(colab["model"] == model) & (colab["strategy"] == "standard")]
+        for strategy in ANALYSED_STRATEGIES:
+            prefix, config = f"compute.{short}.{strategy}", f"{model} + {strategy}"
+            match = (registry["model"] == model) & (registry["strategy"] == strategy)
+            minutes = float(registry.loc[match, "train_time_s"].mean()) / 60
+            meaning = f"Mean training time per run, minutes, {config} (all platforms)"
+            numbers.add(
+                f"{prefix}.train_minutes", minutes, meaning, "mean(train_time_s) / 60", source
+            )
+            rows = colab[(colab["model"] == model) & (colab["strategy"] == strategy)]
+            minutes = float(rows["train_time_s"].mean()) / 60
+            meaning = f"Mean training time per Colab run, minutes, {config}"
+            formula = "mean(train_time_s) / 60 without the Kaggle runs"
+            numbers.add(f"{prefix}.colab_train_minutes", minutes, meaning, formula, source)
+            if strategy != "standard":
+                ratio = float(rows["train_time_s"].mean() / base["train_time_s"].mean())
+                meaning = f"Colab training time of {config} over {model} + standard"
+                formula = "mean(train_time_s) / mean(train_time_s of standard), Colab runs"
+                numbers.add(f"{prefix}.time_ratio_vs_standard", ratio, meaning, formula, source)
+
+
+def _prediction_shares(raw_dir: Path, run_id: str, condition: str) -> pd.Series:
+    """Return the share of all predictions that fall on each class, for one run and condition."""
+    with np.load(raw_dir / f"{run_id}_confusion.npz") as confusion:
+        counts = confusion[condition].sum(axis=0)  # columns = predicted class
+    return pd.Series(counts / counts.sum(), index=list(CLASS_NAMES))
+
+
+def add_confusion_numbers(numbers: Numbers, raw_dir: Path) -> None:
+    """Record `confusion.*`: the two most predicted classes under the conditions of figure 6."""
+    source = "raw/{run_id}_confusion.npz"
+    for model in MODELS:
+        for strategy in ANALYSED_STRATEGIES:
+            run_ids = {s: run_id_of(model, strategy, s) for s in SEEDS}
+            run_ids = {
+                s: r for s, r in run_ids.items() if (raw_dir / f"{r}_confusion.npz").is_file()
+            }
+            if not run_ids:
+                continue
+            config = f"{model} + {strategy}"
+            for condition in CONFUSION_CONDITIONS:
+                per_seed = pd.DataFrame(
+                    {s: _prediction_shares(raw_dir, r, condition) for s, r in run_ids.items()}
+                )
+                mean = per_seed.mean(axis=1).sort_values(ascending=False, kind="stable")
+                prefix = f"confusion.{_short(model)}.{strategy}.{condition}"
+                for rank, label in ((0, "top"), (1, "second")):
+                    name = mean.index[rank]
+                    meaning = f"{label} predicted class (seed mean), {condition}, {config}"
+                    formula = "argmax over classes of the seed-mean share of predictions"
+                    if rank:
+                        formula = "second largest seed-mean share of predictions"
+                    numbers.add(f"{prefix}.{label}_class", name, meaning, formula, source)
+                    meaning = (
+                        f"Share of all predictions on the {label} class, {condition}, {config}"
+                    )
+                    formula = "seed mean of (predictions of the class / all predictions)"
+                    numbers.add(
+                        f"{prefix}.{label}_share", float(mean.iloc[rank]), meaning, formula, source
+                    )
+                top_each = all(per_seed[s].idxmax() == mean.index[0] for s in per_seed.columns)
+                meaning = f"Top class is the most predicted in every seed, {condition}, {config}"
+                numbers.add(
+                    f"{prefix}.top_class_every_seed", top_each, meaning, "per-seed argmax", source
+                )
+
+
 def build_tables(raw: pd.DataFrame) -> dict[str, pd.DataFrame]:
     """Return the per-run tables and their summaries, keyed by name."""
     baseline = baseline_table(raw)
@@ -659,6 +881,7 @@ def build_tables(raw: pd.DataFrame) -> dict[str, pd.DataFrame]:
     return {
         "runs": runs,
         "families": families,
+        "corruptions": corruptions,
         "groups": groups,
         "main_results": summarise(runs, MAIN_METRICS),
         "per_corruption": summarise(
@@ -678,7 +901,9 @@ def answers_markdown(numbers: Numbers, tables: dict[str, pd.DataFrame], stamp: S
         answer_rq2(numbers, runs),
         answer_rq3(numbers, runs, families),
         answer_rq4(numbers, tables["groups"]),
-        answer_rq5(numbers, tables["per_family"], tables["per_corruption"], families),
+        answer_rq5(
+            numbers, tables["per_family"], tables["per_corruption"], families, tables["corruptions"]
+        ),
     ]
     lines = [stamp.heading("Data for RQ1-RQ5"), *stamp.banner(), "", STD_NOTE, COMPARISON_NOTE]
     for section in sections:
@@ -694,13 +919,29 @@ def write_csv(table: pd.DataFrame, path: Path, stamp: Stamp) -> None:
     table.to_csv(path, index=False, lineterminator="\n")
 
 
-def write_outputs(tables: dict[str, pd.DataFrame], tables_dir: Path, stamp: Stamp) -> list[Path]:
-    """Write every C9 table to `tables_dir`; return the paths written."""
+def load_registry(path: Path) -> pd.DataFrame | None:
+    """Return the rows of the 18 matrix runs from `runs.csv`, or None if the file is missing."""
+    if not path.is_file():
+        print(f"no {path}: setup.* and compute.* numbers are left out", file=sys.stderr)
+        return None
+    registry = pd.read_csv(path)
+    return registry[registry["run_id"].isin(expected_run_ids())].reset_index(drop=True)
+
+
+def write_outputs(tables: dict[str, pd.DataFrame], results_dir: Path, stamp: Stamp) -> list[Path]:
+    """Write every C9 table to `results_dir/tables`; return the paths written."""
+    tables_dir = results_dir / "tables"
     tables_dir.mkdir(parents=True, exist_ok=True)
     numbers = Numbers({}, {})
     add_meta_numbers(numbers, stamp)
     add_main_numbers(numbers, tables["main_results"])
+    add_group_numbers(numbers, tables["seen_unseen"])
     answers = answers_markdown(numbers, tables, stamp)  # also records the rq* numbers
+    registry = load_registry(results_dir / "runs.csv")
+    if registry is not None:
+        add_setup_numbers(numbers, registry)
+        add_compute_numbers(numbers, registry)
+    add_confusion_numbers(numbers, results_dir / "raw")
     number_map = json.dumps(numbers.values, indent=2, sort_keys=True, allow_nan=False) + "\n"
     texts = {
         ("rq_answers", "md"): answers,
@@ -735,7 +976,7 @@ def analyse(results_dir: Path, allow_partial: bool = False) -> list[Path]:
     model, strategy = BASELINE
     base_rows = raw[(raw["model"] == model) & (raw["strategy"] == strategy)]
     stamp = Stamp(raw["run_id"].nunique(), tuple(missing), base_rows["seed"].nunique())
-    return write_outputs(build_tables(raw), results_dir / "tables", stamp)
+    return write_outputs(build_tables(raw), results_dir, stamp)
 
 
 def main() -> None:

@@ -343,3 +343,110 @@ def test_notebook_is_valid_and_holds_no_results():
     assert code and all(not cell.outputs for cell in code)
     text = "\n".join(cell.source for cell in code)
     assert "src.analysis" in text and "scripts.make_figures" in text
+
+
+def _write_registry(results_dir):
+    """Write a synthetic `runs.csv` for the 18 runs; the Kaggle run trains faster."""
+    rows = []
+    for run_id in analysis.expected_run_ids():
+        model = "simple_cnn" if run_id.startswith("cnn-") else "resnet18"
+        strategy = run_id.split("-")[1]
+        seconds = {"standard": 600.0, "augmix": 3000.0, "corruption_aware": 900.0}[strategy]
+        rows.append(
+            {
+                "run_id": run_id,
+                "model": model,
+                "strategy": strategy,
+                "n_params": 100 if model == "simple_cnn" else 200,
+                "device_name": "Tesla T4",
+                "torch_version": "2.14.1" if run_id.endswith("s2") else "2.11.0",
+                "torchvision_version": "0.29.1" if run_id.endswith("s2") else "0.26.0",
+                "python_version": "3.13.16",
+                "git_commit": "7d334eb220c19c79",
+                "git_dirty": False,
+                "train_time_s": 60.0 if run_id in analysis.KAGGLE_RUNS else seconds,
+            }
+        )
+    pd.DataFrame(rows).to_csv(results_dir / "runs.csv", index=False)
+
+
+def test_rq3_records_the_clean_accuracy_cost(results):
+    analysis.analyse(results)
+    values = json.loads((results / "tables" / "report_numbers.json").read_text())
+    key = "rq3.resnet18.corruption_aware.clean_acc.diff_vs_standard"
+    assert values[key] == pytest.approx(-0.02)
+    assert values["rq3.cnn.augmix.clean_acc.diff_vs_standard"] == pytest.approx(0.0)
+
+
+def test_rq5_rank_gaps_and_names(results):
+    analysis.analyse(results)
+    values = json.loads((results / "tables" / "report_numbers.json").read_text())
+    for kind in ("family", "corruption"):
+        for gap in ("second_gap", "mildest_gap"):
+            assert values[f"rq5.cnn.standard.{kind}_{gap}"] == pytest.approx(0.0)
+    assert values["rq5.cnn.standard.corruption_worst_gap.seed_noise"] == analysis.WITHIN_NOISE
+    assert "rq5.cnn.standard.family_worst_gap" not in values  # worst_family_gap covers it
+    assert values["rq5.runner_up_family.cnn.standard"] in analysis.MAIN_FAMILIES
+    assert "Other rank gaps" in (results / "tables" / "rq_answers.md").read_text()
+
+
+def test_setup_and_compute_numbers_come_from_the_registry(results):
+    analysis.analyse(results)
+    values = json.loads((results / "tables" / "report_numbers.json").read_text())
+    assert not any(k.startswith(("setup.", "compute.")) for k in values)  # no runs.csv yet
+    _write_registry(results)
+    analysis.analyse(results)
+    values = json.loads((results / "tables" / "report_numbers.json").read_text())
+    assert values["setup.n_params.cnn"] == 100
+    assert values["setup.n_params.resnet18"] == 200
+    assert values["setup.torch_versions"] == "2.11.0 (12 runs), 2.14.1 (6 runs)"
+    assert values["setup.git_commits"] == "7d334eb (18 runs)"
+    assert values["setup.n_dirty_runs"] == 0
+    assert values["compute.cnn.augmix.time_ratio_vs_standard"] == pytest.approx(5.0)
+    assert values["compute.resnet18.augmix.colab_train_minutes"] == pytest.approx(50.0)
+    assert values["compute.resnet18.augmix.train_minutes"] == pytest.approx((3000 * 2 + 60) / 180)
+    hours = (3 * 2 * (600 + 900) + 5 * 3000 + 60) / 3600
+    assert values["compute.train_hours_total"] == pytest.approx(hours)
+
+
+def test_registry_must_agree_on_parameters(results):
+    _write_registry(results)
+    registry = pd.read_csv(results / "runs.csv")
+    registry.loc[0, "n_params"] = 999
+    registry.to_csv(results / "runs.csv", index=False)
+    with pytest.raises(ValueError, match="disagree on n_params"):
+        analysis.analyse(results)
+
+
+def test_confusion_numbers_name_the_most_predicted_classes(results):
+    matrix = np.zeros((NUM_CLASSES, NUM_CLASSES), dtype=np.int64)
+    matrix[:, 6] = 70  # every true class: 70 predicted frog, 30 predicted bird
+    matrix[:, 2] = 30
+    for seed in SEEDS:
+        path = results / "raw" / f"resnet18-standard-s{seed}_confusion.npz"
+        with np.load(path) as old:
+            arrays = dict(old)
+        arrays["gaussian_noise__s5"] = matrix
+        np.savez(path, **arrays)
+    analysis.analyse(results)
+    values = json.loads((results / "tables" / "report_numbers.json").read_text())
+    prefix = "confusion.resnet18.standard.gaussian_noise__s5"
+    assert values[f"{prefix}.top_class"] == "frog"
+    assert values[f"{prefix}.top_share"] == pytest.approx(0.7)
+    assert values[f"{prefix}.second_class"] == "bird"
+    assert values[f"{prefix}.second_share"] == pytest.approx(0.3)
+    assert values[f"{prefix}.top_class_every_seed"] is True
+    assert values["confusion.resnet18.standard.clean__s0.top_share"] == pytest.approx(0.1)
+
+
+def test_group_numbers_and_seen_minus_unseen_gain(results):
+    analysis.analyse(results)
+    values = json.loads((results / "tables" / "report_numbers.json").read_text())
+    key = "groups.resnet18.corruption_aware.seen.accuracy.mean"
+    assert values[key] == pytest.approx(0.80)
+    assert values["groups.cnn.standard.unseen_other_family.abs_degradation.mean"] == pytest.approx(
+        0.30
+    )
+    gap = "rq4.resnet18.corruption_aware.seen_minus_unseen_other_family_gain"
+    assert values[gap] == pytest.approx(0.0)  # synthetic gains are the same on every group
+    assert values[f"{gap}.seed1"] == pytest.approx(0.0)
