@@ -10,3 +10,6 @@ __pycache__/
 results/smoke/
 .pytest_cache/
 .ruff_cache/
+# Phase 09 outputs built while runs are missing: not for the repo, report or README.
+results/tables/*_PARTIAL*
+results/figures/*_PARTIAL*
