@@ -880,3 +880,43 @@ All in `results/tables/report_numbers.json` [real]; new ones written by `src/ana
 
 ### Ideas for later
 - none
+
+## Phase 10: fixes after validation  (2026-11-12, branch phase-10-report, commit: the one titled "phase 10: fix reference [5] pages and validation notes")
+
+### Built
+- Fixes for `validation/phase-10.md` (verdict FAIL on V11, plus non-blocking notes), at the human's request ("fix it and then revalidate again").
+- `report/report.template.md`:
+  - Reference [5] (Geirhos et al. 2018) now gives pp. 7549–7561, from the University of Tübingen bibliography (handle 10900/89433). The NeurIPS proceedings BibTeX gives no pages. The earlier 7538–7550 had no source (V11).
+  - Section 3.4, Section 5.5 and Limitations now say that our family assignment differs from [3]. [3] counts brightness as weather (its Table 1, checked this session in the arXiv PDF 1903.12261, page 6); we count it as digital, following PROJECT_OVERVIEW and CONTRACTS.
+  - Section 4: the Kaggle sentence now gives the Kaggle run's own training time and says that CPU counts were not recorded. Before, it stated "the Kaggle machine had more CPU" as fact and compared the mean of all three runs, Kaggle included, with the Colab mean.
+  - Discussion: "operations unrelated to" became "operations chosen not to overlap with". "Corruption robustness matters … driver assistance, medical imaging …" became "may matter …", without naming domains, because BUILD allows such domains only with "may suggest" and a reference.
+  - Limitations: "discarded, not used" became "not used" (DECISIONS 2026-11-10: the partial run was not deleted).
+- `README.template.md`: step 2 now says that the sample-image grid is not rebuilt there (it needs CIFAR-10-C).
+- `src/analysis.py`: new key `compute.kaggle_train_minutes`, the mean training time of the Kaggle runs, documented in `report_numbers.md`. `tests/test_analysis.py` checks it.
+
+### How to run it
+    .venv/bin/python -m src.analysis
+    .venv/bin/python -m scripts.make_figures
+    .venv/bin/python -m scripts.build_report
+
+### Verified (with output)
+- `python -m src.analysis`; `python -m scripts.make_figures`; `python -m scripts.build_report --quiet` -> `wrote report/report.md`, `wrote README.md`. `git status` shows only the edited files plus `report_numbers.json/.md` (one key added); all other tables and figures unchanged.
+- `ruff format --check .` -> `98 files already formatted`; `ruff check .` -> `All checks passed!`; `pytest -q` -> `378 passed in 70.82s`.
+
+### Numbers produced
+- `compute.kaggle_train_minutes` = 41.7 minutes (source: results/runs.csv, `train_time_s` 2502.27 s of `resnet18-augmix-s2`) [real]
+
+### Changed from earlier phases
+- `src/analysis.py`: one new `compute.*` key, which BUILD requires for any number the report needs. No existing key changed.
+
+### Not done / deferred
+- Re-validation of Phase 10 -> run after this commit by an independent validator.
+
+### Known issues
+- none new
+
+### Decisions used
+- D6 and CONTRACTS families (brightness in digital) are unchanged; the report now discloses the difference from [3].
+
+### Ideas for later
+- none

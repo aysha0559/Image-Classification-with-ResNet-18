@@ -13,6 +13,7 @@ Mean ± std over seeds; std is the sample standard deviation (ddof=1).
 | `compute.cnn.standard.colab_train_minutes` | Mean training time per Colab run, minutes, simple_cnn + standard | mean(train_time_s) / 60 without the Kaggle runs | results/runs.csv |
 | `compute.cnn.standard.train_minutes` | Mean training time per run, minutes, simple_cnn + standard (all platforms) | mean(train_time_s) / 60 | results/runs.csv |
 | `compute.kaggle_runs` | Runs trained on Kaggle | D9 | results/runs.csv |
+| `compute.kaggle_train_minutes` | Mean training time per Kaggle run, minutes | mean(train_time_s) / 60 of the Kaggle runs | results/runs.csv |
 | `compute.resnet18.augmix.colab_train_minutes` | Mean training time per Colab run, minutes, resnet18 + augmix | mean(train_time_s) / 60 without the Kaggle runs | results/runs.csv |
 | `compute.resnet18.augmix.time_ratio_vs_standard` | Colab training time of resnet18 + augmix over resnet18 + standard | mean(train_time_s) / mean(train_time_s of standard), Colab runs | results/runs.csv |
 | `compute.resnet18.augmix.train_minutes` | Mean training time per run, minutes, resnet18 + augmix (all platforms) | mean(train_time_s) / 60 | results/runs.csv |

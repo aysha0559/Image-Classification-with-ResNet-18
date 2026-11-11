@@ -800,6 +800,12 @@ def add_compute_numbers(numbers: Numbers, registry: pd.DataFrame) -> None:
     numbers.add(
         "compute.kaggle_runs", ", ".join(KAGGLE_RUNS), "Runs trained on Kaggle", "D9", source
     )
+    kaggle = registry[registry["run_id"].isin(KAGGLE_RUNS)]
+    if not kaggle.empty:
+        minutes = float(kaggle["train_time_s"].mean()) / 60
+        meaning = "Mean training time per Kaggle run, minutes"
+        formula = "mean(train_time_s) / 60 of the Kaggle runs"
+        numbers.add("compute.kaggle_train_minutes", minutes, meaning, formula, source)
     colab = registry[~registry["run_id"].isin(KAGGLE_RUNS)]
     for model in MODELS:
         short = _short(model)

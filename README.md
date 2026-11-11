@@ -63,7 +63,7 @@ cat results/tables/main_results.md
 .venv/bin/python -m scripts.build_report
 ```
 
-This rebuilds `results/tables/`, the figures and this README and the report from `results/raw/` and `results/runs.csv`.
+This rebuilds `results/tables/`, the figures (except the sample-image grid, which needs the CIFAR-10-C images and is made by `scripts/make_sample_grid.py`) and this README and the report from `results/raw/` and `results/runs.csv`.
 
 **3. Re-run one experiment on Google Colab** (free T4 GPU). Open [notebooks/run_on_colab.ipynb in Colab](https://colab.research.google.com/github/aysha0559/Image-Classification-with-ResNet-18/blob/main/notebooks/run_on_colab.ipynb), choose a GPU runtime, set the parameters in the first code cell, for example
 

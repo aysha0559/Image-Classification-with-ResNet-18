@@ -405,6 +405,7 @@ def test_setup_and_compute_numbers_come_from_the_registry(results):
     assert values["compute.cnn.augmix.time_ratio_vs_standard"] == pytest.approx(5.0)
     assert values["compute.resnet18.augmix.colab_train_minutes"] == pytest.approx(50.0)
     assert values["compute.resnet18.augmix.train_minutes"] == pytest.approx((3000 * 2 + 60) / 180)
+    assert values["compute.kaggle_train_minutes"] == pytest.approx(1.0)
     hours = (3 * 2 * (600 + 900) + 5 * 3000 + 60) / 3600
     assert values["compute.train_hours_total"] == pytest.approx(hours)
 

@@ -8,6 +8,7 @@
   "compute.cnn.standard.colab_train_minutes": 9.601681287083322,
   "compute.cnn.standard.train_minutes": 9.601681287083322,
   "compute.kaggle_runs": "resnet18-augmix-s2",
+  "compute.kaggle_train_minutes": 41.70453811086669,
   "compute.resnet18.augmix.colab_train_minutes": 77.43927847237504,
   "compute.resnet18.augmix.time_ratio_vs_standard": 4.657669953924881,
   "compute.resnet18.augmix.train_minutes": 65.52769835187226,
