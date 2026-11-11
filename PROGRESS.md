@@ -746,3 +746,71 @@ None above 1.5 points; nothing flagged.
 
 ### Ideas for later
 - none
+
+## Phase 09: analysis  (2026-11-11, branch phase-09-analysis, commit: the one titled "phase 09: analysis tables and figures")
+
+Built first on 9 of 18 runs (2026-11-05, in the worktree `../cifar10-phase09`, uncommitted, PARTIAL outputs never committed), with the human's approval while Colab waited for a GPU. On 2026-11-11 the branch was fast-forwarded to `main` (`2117ca0`, all 18 runs, `validation/phase-08.md` PASS WITH NOTES), the PARTIAL outputs were deleted, and every BUILD step was redone on the full data. All numbers below are from the 18 runs.
+
+### Built
+- `src/analysis.py`: `python -m src.analysis`. Reads only `$RESULTS_DIR/raw/*.csv`; refuses and lists the missing runs unless all 18 are present or `--allow-partial` is given (then every output is stamped PARTIAL in its name and title). Writes every C9 table, `report_numbers.json`, `report_numbers.md` (key, meaning, formula, source for every key) and `rq_answers.md` (RQ1-RQ5 data tables, paired-by-seed differences with per-seed values and a seed-noise label).
+- `scripts/make_figures.py`: `python -m scripts.make_figures`. Reads only `results/tables/` and `results/raw/`. Writes fig1-fig6 and fig8 as PNG 200 dpi + PDF; fig7 is kept and regenerated only if missing. Same refusal guard.
+- `notebooks/02_analysis.ipynb`: calls the two commands and displays the tables and figures. Saved without outputs.
+- `tests/test_analysis.py`: 27 tests on a synthetic 18-run results set with known answers.
+- `.gitignore`: ignores `results/tables/*_PARTIAL*` and `results/figures/*_PARTIAL*`.
+- `results/tables/` (10 files) and `results/figures/` (fig1-6, fig8; PNG + PDF): the full outputs, committed.
+
+### How to run it
+    python -m src.analysis
+    python -m scripts.make_figures
+
+### Verified (with output)
+- Full run: `python -m src.analysis` and `python -m scripts.make_figures` -> exit 0, 10 tables and 14 figure files written. `report_numbers.json`: 670 keys, 0 null; `meta.status = "FULL"`, `meta.n_runs = 18`, `meta.baseline_seeds = 3`.
+- Baseline mCE: `main.cnn.standard.mce.mean` = `1.0` -> 100.0% (`main_results.md`: `100.0% ± 0.7%`).
+- Guard: a copy of `results/raw` without `resnet18-augmix-s2.csv` -> `refusing to run: 1 of 18 runs are missing ...` exit 1 (`src.analysis`); `refusing to run: 1 runs are missing; use --allow-partial for PARTIAL figures. First missing: resnet18-augmix-s2` exit 1 (`scripts.make_figures`).
+- Hand check: a separate script using only the `csv` and `statistics` modules (no pandas, no project code) recomputes from `results/raw/*.csv`:
+
+      hand script                                             main_results.csv
+      cnn.augmix.mean_corrupted_acc           0.6701591111111111   0.670159111111111
+      resnet18.standard.mCE                   0.6848805918524928   0.6848805918524928
+      resnet18.corruption_aware.relative_mCE  0.25712654792060935  0.25712654792060935
+      cnn.standard.mCE                        1.0                  1.0
+
+- Rebuild: copied all 24 outputs aside, deleted `results/tables/*` and every figure except fig7 (and `extra_our_corruptions.png`), re-ran both commands -> `identical=24 different=0` (`cmp`, CSV/JSON/MD and also PNG/PDF).
+- Figures: fig1-6 and fig8 opened and read by eye. Titles, axis labels with units (%, percentage points), legends and cell numbers readable; same colour per strategy (S1 blue, S2 orange, S3 green) and line style per model (CNN dashed, ResNet-18 solid). No change needed.
+- Notebook: all code cells executed in order from the repo root with a stand-in `IPython.display` (IPython is not in `.venv`) -> `18 of 18 runs present`, `Missing: none`, 14 displays, every file found; outputs afterwards still byte-identical (24/24). **Not run in a real Jupyter kernel.**
+- Lint: `ruff format --check .` -> `92 files already formatted`; `ruff check .` -> `All checks passed!`
+- Tests: `DATA_DIR=<repo>/data pytest -q` -> `344 passed in 59.10s`; `pytest -q tests/test_analysis.py` -> `27 passed in 19.51s`.
+
+### Numbers produced
+All [real], 3 seeds each, mean ± std (ddof=1). Source: `results/tables/main_results.csv` / `.md`.
+
+| Model | Strategy | Clean acc | Mean corrupted acc | mCE | Relative mCE |
+|---|---|---|---|---|---|
+| simple_cnn | standard | 84.5% ± 0.6% | 59.7% ± 0.0% | 100.0% ± 0.7% | 100.0% ± 2.3% |
+| simple_cnn | augmix | 83.4% ± 0.6% | 67.0% ± 0.8% | 82.9% ± 1.7% | 63.6% ± 0.9% |
+| simple_cnn | corruption_aware | 82.3% ± 0.4% | 74.8% ± 0.6% | 68.5% ± 1.6% | 36.1% ± 1.3% |
+| resnet18 | standard | 93.7% ± 0.1% | 71.6% ± 0.3% | 68.5% ± 0.9% | 90.7% ± 1.8% |
+| resnet18 | augmix | 93.7% ± 0.0% | 83.7% ± 0.5% | 40.7% ± 0.9% | 42.7% ± 1.6% |
+| resnet18 | corruption_aware | 92.5% ± 0.2% | 87.6% ± 0.1% | 33.8% ± 0.3% | 25.7% ± 1.0% |
+
+- Seed-noise labels in `report_numbers.json`: 72 comparisons, all `beyond seed noise`, none `within seed noise` or `not assessable`.
+- Worst family by mean absolute drop: `noise` for both models with standard training (`rq5.worst_family.*.standard`); worst corruption `gaussian_noise` (`rq5.worst_corruption.*.standard`).
+
+### Changed from earlier phases
+- none. No change to training, evaluation, configs or Phase 08 scripts.
+
+### Not done / deferred
+- Prose conclusions for RQ1-RQ5 -> Phase 10.
+- Notebook run in a real Jupyter/Colab kernel -> Phase 10 or 11 (IPython is not installed locally).
+
+### Known issues
+- `--allow-partial` on `scripts.make_figures` is not listed in CONTRACTS C5 (BUILD names it for `src.analysis` only), and the `.gitignore` PARTIAL rule is not in C1's "Not committed" list. Neither affects full runs; the human may want them recorded in CONTRACTS.
+- `src.analysis` imports `src.utils` for `env_path`, which imports torch, so it needs the torch install although it uses no torch.
+- `simple_cnn + standard` mean corrupted accuracy shows `± 0.0%`: the std rounds to 0.0 at one decimal (`main_results.csv` has the full value).
+
+### Decisions used
+- D6: the three analysis groups, from `src/constants.py`. D7: extras dropped, 75 corrupted conditions. D8: baseline = seed-mean of Simple CNN + standard, CE, mCE, relative mCE, degradation on accuracy, fractions in CSV/JSON.
+- std is the sample std over seeds (ddof=1) everywhere (`meta.std_ddof`). Per-corruption mean and std: each seed is averaged over severities first, then summarised over seeds. No p-values.
+
+### Ideas for later
+- none
