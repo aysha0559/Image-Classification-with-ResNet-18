@@ -1,0 +1,18 @@
+# Keep data, runs, checkpoints, secrets and local state out of every image (Phase 11).
+.git
+.gitignore
+.venv
+data
+runs
+dist
+results/smoke
+**/__pycache__
+**/*.pyc
+**/.ipynb_checkpoints
+.pytest_cache
+.ruff_cache
+*.pt
+*.pth
+.env
+.env.*
+validation

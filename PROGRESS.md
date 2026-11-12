@@ -920,3 +920,176 @@ All in `results/tables/report_numbers.json` [real]; new ones written by `src/ana
 
 ### Ideas for later
 - none
+
+## Phase 11: deploy  (2026-11-12, branch phase-11-deploy, commit: the one titled "phase 11: packaging, Docker, Colab badge, results viewer")
+
+**Not published.** The human chose "Not yet" for Hugging Face; nothing was uploaded, no Space or model repo exists, and the README says the viewer is not online yet. Everything else in BUILD is built and tested locally.
+
+### Built
+- `Makefile`: `help setup data smoke pilot train-all analyze report app docker-build docker-app check`, each a thin wrapper over the C5 commands. `make help` (the default) lists them with one-line descriptions.
+- `Dockerfile` (CPU app): `python:3.11-slim`; torch/torchvision from `requirements-local.txt` (PyTorch CPU index; the build asserts a `+cpu` torch), `requirements.txt` + `app/requirements.txt`; copies `src/ configs/ splits/ results/ app/` and `LICENSE`; user `user` (uid 1000, as Hugging Face Spaces require); `EXPOSE 7860`; health check on `/_stcore/health`; `CMD streamlit run app/streamlit_app.py` on port 7860 with a 5 MB upload limit.
+- `Dockerfile.gpu` (optional): `pytorch/pytorch:2.11.0-cuda13.0-cudnn9-runtime` (tag checked on Docker Hub; torch 2.11 + CUDA 13.0 like the Colab runs of 2026-11-04), adds git and `requirements.txt`; the repo is mounted at `/repo` so runs record their commit; `DATA_DIR=/data`, `RUNS_DIR=/runs`, `RESULTS_DIR=/results` as volumes; entry point `bash scripts/run_all.sh`.
+- `.dockerignore`: `.git`, `.venv`, `data`, `runs`, `dist`, `results/smoke`, caches, `*.pt`, `.env`, `validation`.
+- `app/streamlit_app.py`: two pages (`st.navigation`). **Results**: main table from `results/tables/main_results.csv` with model/strategy filters, the 8 figures with captions taken from the report, the per-corruption table with a family filter, links to the report and repo. **Try it**: a bundled test image (class, then one of 10 images; clean or any of the 15 CIFAR-10-C corruptions at severity 1-5, precomputed) or an upload (centre-cropped, resized to 32x32 in memory; clean or our 4 seen corruptions, noise seeded); the 6 seed-0 models' top-3 with probabilities, a tick or cross against the true class for bundled images; both datasets cited on the page. If no checkpoints are configured, or loading fails, Try it shows a message and Results still works.
+- `app/core.py`: the app's logic without Streamlit (tables, samples, upload decoding, checkpoint fetching with sha256 check, prediction through `build_eval_transform` as in `src.evaluate`). Checkpoints come from `LOCAL_CHECKPOINT_DIR`, else `HF_MODEL_REPO` via `hf_hub_download`; loaded once per process (`st.cache_resource`).
+- `app/build_assets.py` (`python -m app.build_assets`): the demo asset builder RULES section 3 names. `app/assets/samples.npz`: the first 10 test images of each class (chosen by index only), 0.28 MB. `app/assets/samples_c.npz`: their CIFAR-10-C images, 15 corruptions x 5 severities x 100, 19.86 MB compressed (under the 25 MB limit, so all 5 severities are kept; the builder falls back to severities 1, 3, 5 above it).
+- `app/requirements.txt` (`streamlit==1.67.0`, `huggingface_hub==2.4.0`), `app/README.md` (Spaces YAML header: `title`, `emoji`, `colorFrom`, `colorTo`, `sdk: docker`, `app_port: 7860`, `short_description`, `license: mit`; fields checked this session in the Hub docs "Spaces Configuration Reference" and "Licenses"), `app/__init__.py`.
+- `scripts/export_checkpoints.py`: the 6 seed-0 `model_final.pt` -> bare state dicts `dist/checkpoints/{run_id}.pt`, `models.json` (run_id, model, strategy, seed, file, n_params, clean accuracy from `results/raw/{run_id}.csv`, sha256, bytes) and a model card `README.md`. Checks status, run id, model, strategy and seed, and a strict `load_state_dict`; writes nothing if any run is missing or wrong.
+- `scripts/publish_hf.py`: checks `dist/checkpoints/` against `models.json`; uploads it to the model repo; stages the Space from git-tracked files at HEAD (refuses uncommitted changes), with `app/README.md` as the Space `README.md`; creates the Space (Docker SDK), sets the variable `HF_MODEL_REPO`; downloads every checkpoint back and compares sha256. Token from `HF_TOKEN` only. `--dry-run` needs no token or network. **Not run against the Hub.**
+- `notebooks/run_on_colab.ipynb`: first cell has the Open in Colab badge and a table of the 4 modes `smoke`, `pilot`, `matrix`, `analyze` with expected times; new `STAGE` values `smoke` (CPU, run kept in `/content/runs`, results in `results/smoke/`), `pilot` (`cnn-standard-s0`, evaluated into `/content/pilot_results` and printed next to the published numbers) and `analyze` (no Drive, data or GPU). `train`, `evaluate`, `both`, `matrix` are unchanged.
+- `docs/CLOUD.md`: paths (a)-(e).
+- `README.template.md` -> `README.md`: Open in Colab badge, "not published online yet" line pointing to `make app`, Docker and `docs/CLOUD.md`, a `make` shortcuts paragraph, `app/` in the layout.
+- `tests/test_app.py`: 22 tests (export, sha256 checks, local fetch, prediction equals softmax of `model(build_eval_transform(img))`, uploads, no file writes in the app, samples, results tables, publish checks and token refusal, Space staging, `make help`, Dockerfile and `.dockerignore`).
+
+### How to run it
+    make setup && make check
+    make app                                           # http://localhost:7860
+    .venv/bin/python -m scripts.export_checkpoints     # needs the 6 seed-0 model_final.pt in $RUNS_DIR
+    LOCAL_CHECKPOINT_DIR=dist/checkpoints make app
+    make docker-build && make docker-app CHECKPOINTS=dist/checkpoints
+    DATA_DIR=./data .venv/bin/python -m app.build_assets        # rebuild app/assets (needs CIFAR-10-C)
+    .venv/bin/python -m scripts.publish_hf --model-repo <user>/<repo> --space <user>/<space> --dry-run
+
+### Verified (with output)
+- `make help` -> 12 targets with descriptions (help, setup, data, smoke, pilot, train-all, analyze, report, app, docker-build, docker-app, check).
+- `make check` -> ruff format and check clean, `398 passed, 12 warnings in 78.43s` (CPU).
+- Clean clone (a snapshot of this working tree, committed in a scratch repo and cloned; `git clone` of GitHub needs the push): `make setup` exit 0 (2m41s; Python 3.12.16, torch `2.11.0+cpu`), `make check` -> `398 passed ... in 87.62s`, `DATA_DIR=<existing data> make smoke` exit 0: `all 20 files match splits/cifar10c_checksums.json`, `extracted files already verified; nothing to download`, `epoch 1/1 ... val_acc 0.1172`, `wrote results/smoke/smoke-cnn-standard-s0.csv` [smoke]. The 2.9 GB download itself was not repeated.
+- `make docker-build` -> exit 0 in 8m18s; image `cifar10-robustness-app` **2.75 GB** (`docker image inspect` -> `2753738918 bytes`); inside: Python 3.11.18, torch `2.11.0+cpu`, torchvision `0.26.0+cpu`, streamlit 1.67.0, huggingface_hub 2.4.0, uid 1000 (`user`); `/app` holds `LICENSE app configs requirements*.txt results splits src`; `find /` for `*.pt`, `.git`, CIFAR files, `.env` -> nothing.
+- `make docker-app CHECKPOINTS=dist/checkpoints` -> `/_stcore/health` `ok`, `GET /` 200; `/checkpoints` mounted with the 6 files.
+- Browser (Chrome, http://localhost:7860, container with the 6 checkpoints): Results shows the filters, the main table (values as in `main_results.md`, e.g. ResNet-18 corruption-aware `92.5% ± 0.2%`, mCE `33.8% ± 0.3%`), all 8 figures (JS check: 8 images decoded, 8 figure headings, 2 tables); Try it shows the 6 models' top-3, e.g. test image 3 (airplane), CIFAR-10-C Gaussian noise severity 1: Simple CNN standard `ship: 89.6%` (wrong), ResNet-18 corruption-aware `airplane: 99.5%`.
+- No network (`docker run --network none`), checked with Streamlit's AppTest inside the container: Results `exceptions 0 | tables 2 | figures 8`; Try it without `HF_MODEL_REPO` -> the "not configured" info message; with an unreachable `HF_MODEL_REPO` -> after the Hub client's retries, the warning "could not be loaded ... The Results page still works"; no exception.
+- Step 2, predictions (`dist/checkpoints` via the app's code against `model_final.pt` from `runs/` with `build_eval_transform`, `src.evaluate` style): 5 bundled clean samples (test images 3, 35, 77, 29, 76) and 2 CIFAR-10-C samples (Gaussian noise s5 on image 52, fog s3 on image 12) for each of the 6 models: same top-1 everywhere, `max |prob difference| ... 0.00e+00`.
+- Exported checkpoints on the full clean test set (CPU, fp32, the app's model, `src.evaluate.predict`): 0.8404, 0.8368, 0.8201, 0.9364, 0.9372, 0.9236 against `models.json` 0.8404, 0.8368, 0.8202, 0.9364, 0.9372, 0.9236: equal except `cnn-corruption_aware-s0`, 1 image of 10,000 apart (the study evaluated on a T4 with AMP).
+- `models.json` clean accuracies equal `results/runs.csv` / the raw CSVs for all 6 runs.
+- Colab notebook dry run on this machine under IPython (scratch clone, fake `google.colab`, paths moved off `/content`, no pip): `STAGE = "analyze"` -> `ALL CELLS OK` in 19 s, main table printed, `git status --short` empty; `STAGE = "smoke"` -> `ALL CELLS OK` in 78 s with the data on a fake Drive (`all 20 files match`, `wrote results/smoke/smoke-cnn-standard-s0.csv`). **Not run on Colab**: Colab clones from GitHub `main`, which does not have this notebook until it is pushed.
+- `RESULTS_DIR=<copy of results/raw + runs.csv> python -m src.analysis` and `scripts.make_figures` -> tables and figures written into that folder; `main_results.csv` byte-identical to the committed one (backs CLOUD.md (d)).
+- `python -m scripts.publish_hf --model-repo USER/cifar10-robustness-models --space USER/cifar10-robustness --dry-run` on the committed tree -> `checked` with the 6 sha256 values of the table below, `model repo ...: ['README.md', 'cnn-augmix-s0.pt', ..., 'resnet18-standard-s0.pt']` (8 files), `Space ... : 142 files + README.md`, `Space variable HF_MODEL_REPO=...`. Nothing was sent.
+- Leakage guard: `tests/test_no_leakage.py` now also scans `app/`; only `app/build_assets.py` there imports `src.data.cifar10c`.
+- Secrets: `git grep -nIE "hf_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}"` -> empty. Largest new tracked file `app/assets/samples_c.npz` 19,857,685 bytes; no `.pt` or `dist/` tracked.
+
+### Numbers produced
+- Docker image size 2.75 GB (2,753,738,918 bytes) (source: `docker image inspect cifar10-robustness-app`) [real].
+- Seed-0 checkpoint sha256 and sizes (source: `dist/checkpoints/models.json`, not committed) [real]:
+
+  | file | bytes | sha256 |
+  |---|---|---|
+  | cnn-standard-s0.pt | 2680765 | 5568342ee72f4e6af987148850f8856b3327cf3f8db0e588f511074571e5ac36 |
+  | cnn-augmix-s0.pt | 2680685 | 0b945d76cfb6bbdc6a0f4c2866a7265bf549f450f3d25cb3cc1c7517794368c9 |
+  | cnn-corruption_aware-s0.pt | 2681213 | 403c004a477dbd8a24af170f3fb4bc509a52a74f94e32752df4fcacb37162d59 |
+  | resnet18-standard-s0.pt | 44772491 | 037a0860bfe9d71d5bad49d84889a777cfda3149fff3a808ae76cf8f0619da27 |
+  | resnet18-augmix-s0.pt | 44772235 | 59c33811ecce98db7306cb840dda4ac00e3b8dffcd8bd6baae36f4aeffede130 |
+  | resnet18-corruption_aware-s0.pt | 44773579 | 9a5f92bda4b627b4d186308eeeff38146356d9f583f746bc851de04f96415137 |
+
+- No result changed; no training.
+
+### Changed from earlier phases
+- `notebooks/run_on_colab.ipynb` (Phase 08): new stages and the first cell, because BUILD section 4 asks for the 4 modes; the old stages behave as before.
+- `tests/test_no_leakage.py` (Phase 00/02): `app/build_assets.py` added to the allowed importers and `app/` scanned, as RULES section 3 already allows the demo asset builder.
+- `README.template.md` / `README.md` (Phase 10): badge, demo line, `make` paragraph, `app/` in the layout. `report/report.md` unchanged by the rebuild.
+- `.venv` (not in git): `app/requirements.txt` installed.
+
+### Not done / deferred
+- Publishing (model repo, Space, URLs in README, Hub sha256 check) -> when the human gives the Hugging Face ids and says go; they set `HF_TOKEN` in their own terminal. Then: `scripts.publish_hf` (dry run first), open the Space, check both pages and the upload path on the Space, put the URL into `README.template.md` and rebuild.
+- `make docker-app` with `HF_MODEL_REPO` (a real Hub download) -> after publishing.
+- CLOUD.md (b) on real Colab -> after this branch is merged and pushed (the notebook clones `main` from GitHub).
+- `Dockerfile.gpu` not built or run (no NVIDIA GPU here); CLOUD.md (d) says it is untested.
+- Uploads tested through code and unit tests, not through the browser (the browser tool can upload only files shared with the session).
+- GitHub (BUILD section 6), suggestions only, nothing changed on GitHub: description "How CIFAR-10 classifiers fail under common corruptions (CIFAR-10-C) and how AugMix and corruption-aware training help: PyTorch code, results, report and demo"; topics `cifar10`, `cifar10-c`, `robustness`, `corruption-robustness`, `augmix`, `data-augmentation`, `pytorch`, `resnet`, `streamlit`, `reproducible-research`.
+
+### Known issues
+- **CIFAR-10 has no stated licence.** Its page asks only for a citation of Krizhevsky (2009); CIFAR-10-C is CC BY 4.0 (Zenodo 2535967). The human approved bundling the 100 test images and their CIFAR-10-C versions with both cited on the page and in the model card ("Yes, bundle with citations").
+- The image is 2.75 GB because `requirements.txt` (BUILD: install it) brings scipy, scikit-image, scikit-learn, opencv, matplotlib, seaborn, pytest and ruff, most of which the app does not use. A slimmer app-only requirements file would be a change to C1; not done.
+- With an unreachable `HF_MODEL_REPO`, Try it waits for the Hub client's retries (about 20 s) before the warning, and again on each page rerun, because failures are not cached.
+- `LOCAL_CHECKPOINT_DIR`, `HF_MODEL_REPO` and `HF_TOKEN` (BUILD) and the Makefile variables `PYTHON`, `IMAGE`, `PORT`, `CHECKPOINTS` are not in CONTRACTS C2; `app/core.py`, `app/build_assets.py`, `app/__init__.py` are not listed under `app/` in C1. The human may want them recorded there.
+- `make pilot` and `make train-all` in a clone need a new `RESULTS_DIR` (the committed results would make `src.evaluate` refuse and `run_all.sh` skip everything); the help text and CLOUD.md say so.
+- Streamlit's file uploads on Hugging Face Spaces sometimes need `--server.enableXsrfProtection=false`; not added, to be checked on the Space.
+- Four checkpoints were downloaded from Drive on 2026-11-12 into `runs/{run_id}/model_final.pt` (`cnn-augmix-s0`, `resnet18-standard-s0`, `resnet18-corruption_aware-s0`, `resnet18-augmix-s0`); each one's `run_id` was checked before use. Drive was not changed.
+
+### Decisions used
+- D10: Streamlit app, Docker + Makefile, seed-0 checkpoints for a Hugging Face model repo (not yet uploaded), one Colab notebook for any stage.
+- D2: the app predicts through `build_eval_transform` (training-set mean/std). D3: final-epoch models. D6/D7: the 15 corruptions for bundled samples, the 4 seen ones for uploads. D9: torch 2.11 CPU in the image, the CUDA base image for the GPU path.
+
+### Ideas for later
+- A slimmer `app/requirements-runtime.txt` for the image (needs a C1 change).
+- (done in the fixes below) Cache a failed model load for a few minutes.
+
+## Phase 11: fixes after validation  (2026-11-12, branch phase-11-deploy, commit: the one titled "phase 11: README setup and offline retry fixes")
+
+### Built
+- Fixes for friction points 1-3 and 9 of `validation/phase-11.md` (verdict PASS), chosen by the human.
+- `README.template.md` -> `README.md`: the manual install also installs `app/requirements.txt` (`make app` failed after it); Python note says python3.12 was used and how to use another interpreter (`make setup PYTHON=<your python>`); the download size of CIFAR-10-C is stated where `scripts.download_cifar10c` and the `make` data targets are mentioned (worded without digits because of the build_report guard).
+- `app/core.py`: `FailureMemo`, remembering a failed checkpoint load for 5 minutes. `app/streamlit_app.py` uses one per process (`st.cache_resource`), so Try it no longer waits for the Hub client's retries on every rerun; the warning says when loading is tried again.
+- `tests/test_app.py`: one new test for `FailureMemo`.
+
+### How to run it
+    make check
+    make docker-build && docker run --rm --network none -e HF_MODEL_REPO=someone/repo -p 7860:7860 cifar10-robustness-app
+
+### Verified (with output)
+- `make check` -> ruff clean, `399 passed`.
+- `python -m scripts.build_report --quiet` -> `wrote report/report.md`, `wrote README.md`; `report/report.md` unchanged.
+- Container with `--network none` and an unreachable `HF_MODEL_REPO`, Try it twice in one process (AppTest inside the container): `run 1: 26.4s ... Loading is tried again 5 minutes after the failure.`, `run 2: 0.3s` (same warning); Results `exceptions 0 figures 8`. Image size unchanged at 2.75 GB.
+
+### Numbers produced
+- none
+
+### Changed from earlier phases
+- none beyond this phase's files
+
+### Not done / deferred
+- Friction points 4-8 and 10 of `validation/phase-11.md` left as they are (4 and 5 resolve when pushed and published).
+- Hugging Face publishing -> the human is creating an account; then dry run, publish, Space check, URL into the README.
+- Re-validation of this commit -> before merging.
+
+### Known issues
+- none new
+
+### Decisions used
+- D10 unchanged.
+
+### Ideas for later
+- none
+
+## Phase 11: publishing and hosting change  (2026-11-12, branch phase-11-deploy, commit: the one titled "phase 11: model repo published, viewer hosting moved to Streamlit Community Cloud")
+
+### Built
+- **Model repo published** (the human's go-ahead and Hugging Face login): https://huggingface.co/x-striker-x/cifar10-robustness-models, public, the 6 seed-0 state dicts, `models.json`, model card. Uploaded with `scripts.publish_hf` from `dist/checkpoints/`; the token was read from the CLI login store into `HF_TOKEN` for that command only, never printed or written to the repo, and the login was removed afterwards (`hf auth logout` -> `Successfully logged out from all access tokens.`).
+- **No Hugging Face Space.** `api.create_repo(..., repo_type="space", space_sdk="docker")` -> `402 Payment Required ... Static Spaces are free for everyone, but hosting Gradio and Docker Spaces on free cpu-basic requires a PRO subscription.` No Space exists (`repo_exists` -> `False`).
+- `docs/agent-prompts/DECISIONS.md` D10 + change log: viewer hosted on Streamlit Community Cloud instead, approved by the human. The human's GitHub account needs **admin** on the repo for that (Community Cloud requires it; the account has push only), which the repo owner is to grant; the human then deploys.
+- `app/requirements.txt`: complete on its own, because Community Cloud installs only the dependency file next to the entrypoint: `--find-links` to PyTorch's torch/torchvision wheel pages with `torch==2.11.0+cpu`, `torchvision==0.26.0+cpu` (same versions as `requirements-local.txt`), `-r ../requirements.txt`, streamlit, huggingface_hub. A plain `--extra-index-url` failed with uv (`no version of tqdm==4.70.1`: uv takes each package only from the first index that has it).
+- `app/streamlit_app.py`: `secrets_to_env()` copies `HF_MODEL_REPO` from Streamlit secrets into the environment if it is not set there (how Community Cloud passes settings).
+- `Makefile`: `HF_MODEL_REPO ?= x-striker-x/cifar10-robustness-models`, so `make app` and `make docker-app` give the full demo; `make app CHECKPOINTS=dir` uses local files; `HF_MODEL_REPO=` for Results only.
+- `README.template.md` -> `README.md`, `docs/CLOUD.md`: model repo link; (e) gains the Community Cloud steps (repo, branch `main`, `app/streamlit_app.py`, secret `HF_MODEL_REPO`) and the Space/PRO note.
+- `tests/test_app.py`: the torch pins of `app/requirements.txt` must equal `requirements-local.txt`.
+
+### How to run it
+    make app                       # downloads the 6 models from the public model repo
+    make docker-build && make docker-app
+
+### Verified (with output)
+- Hub checksums: `hub <file>: <sha256> ok` for all 6 files (download into a fresh cache, compared with `models.json`); the repo lists `.gitattributes, README.md, 6 x .pt, models.json`; read without a token -> `9 files`.
+- Container from the Hub, no token, AppTest inside: `58s exceptions 0 warnings []`, the 6 model headings, captions `clean test accuracy 84.0% ... 92.4% (seed 0)`.
+- AppTest with `at.secrets["HF_MODEL_REPO"]` set and no env var -> models loaded, `exceptions 0 warnings []`; with no secrets file -> `exceptions 0 errors []` and the "not configured" info.
+- Rebuilt image (12m03s, 2,753,709,458 bytes; torch `2.11.0+cpu`, uid 1000): `make docker-app` passes `HF_MODEL_REPO=x-striker-x/cifar10-robustness-models`; Try it from the Hub -> `63s exceptions 0 warnings []`, 6 models.
+- `make check` -> ruff clean, `400 passed ... in 87.23s`.
+- `app/requirements.txt` alone in fresh Python 3.12.16 venvs: uv 0.13.7 -> `2.11.0+cpu 0.26.0+cpu 2.2.6 1.67.0` (venv 1.6 GB); pip -> `2.11.0+cpu 0.26.0+cpu 2.2.6 1.67.0`.
+
+### Numbers produced
+- none (checksums as in the Phase 11 entry above)
+
+### Changed from earlier phases
+- `docs/agent-prompts/DECISIONS.md` D10 (hosting), approved by the human; no result is affected.
+
+### Not done / deferred
+- Deploying on Streamlit Community Cloud -> after the repo owner grants the human admin, this branch is re-validated, merged and pushed; the human signs in at share.streamlit.io and deploys; then the app URL goes into the README and CLOUD.md (a), and the app is checked.
+- Community Cloud's memory limit is not in the docs pages read; whether the 6 models fit is checked on deploy.
+- The OAuth authorization of the "Hugging Face CLI" app stays on the human's account until removed in Settings -> Connected Apps (the local token is deleted).
+
+### Known issues
+- `app/README.md` (the Space header) and the Space part of `scripts/publish_hf.py` are unused unless someone has Hugging Face PRO.
+
+### Decisions used
+- D10 (changed): Streamlit Community Cloud for the viewer, Hugging Face model repo for the checkpoints.
+
+### Ideas for later
+- none

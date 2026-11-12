@@ -4,8 +4,10 @@
 
 We train a Simple CNN and ResNet-18 from scratch on CIFAR-10 with three training strategies (standard, AugMix, corruption-aware), 3 seeds each, and test them on clean CIFAR-10 and on CIFAR-10-C: 15 corruption types (noise, blur, weather, digital) at 5 severity levels. Every number below is filled in by a script from the result files.
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aysha0559/Image-Classification-with-ResNet-18/blob/main/notebooks/run_on_colab.ipynb)
+
 - **Report:** [report/report.md](report/report.md)
-- **Live demo:** coming in a later phase (link to be added)
+- **Results viewer and live demo:** the hosted version is not online yet. `make app` (or Docker: `make docker-build docker-app`) runs it on your machine and downloads the models from the public model repo [x-striker-x/cifar10-robustness-models](https://huggingface.co/x-striker-x/cifar10-robustness-models); see [docs/CLOUD.md](docs/CLOUD.md).
 
 ![Accuracy against corruption severity](results/figures/fig2_acc_vs_severity.png)
 
@@ -36,7 +38,7 @@ These hold on 32x32 CIFAR-10 images with synthetic corruptions; see the report's
 
 ## Reproduce
 
-Everything below runs from the repository root. Python 3.10+; the analysis steps need no GPU.
+Everything below runs from the repository root. Python 3.10+ (developed with python3.12; with another version, change `python3.12` below, or run `make setup PYTHON=<your python>`); the analysis steps need no GPU.
 
 **Set up** (once):
 
@@ -44,8 +46,10 @@ Everything below runs from the repository root. Python 3.10+; the analysis steps
 git clone https://github.com/aysha0559/Image-Classification-with-ResNet-18.git
 cd Image-Classification-with-ResNet-18
 python3.12 -m venv .venv
-.venv/bin/pip install -r requirements-local.txt -r requirements.txt
+.venv/bin/pip install -r requirements-local.txt -r requirements.txt -r app/requirements.txt
 ```
+
+`make setup` does the same. `app/requirements.txt` adds the results viewer (`make app`).
 
 **1. View the results only.** Nothing to run: the report is [report/report.md](report/report.md), the tables are in [results/tables/](results/tables/) and the figures in [results/figures/](results/figures/). For example:
 
@@ -71,7 +75,7 @@ STRATEGY = "augmix"
 STAGE = "both"
 ```
 
-with `SEED` left at its default, then Runtime > Run all. The notebook mounts Google Drive, downloads and checks CIFAR-10-C, trains, evaluates and saves the results under `MyDrive/cifar10-robustness/`. Training resumes from the last checkpoint if the session ends. On a machine with an NVIDIA GPU you can run the same steps directly:
+with `SEED` left at its default, then Runtime > Run all. The notebook mounts Google Drive, downloads and checks CIFAR-10-C, trains, evaluates and saves the results under `MyDrive/cifar10-robustness/`. Training resumes from the last checkpoint if the session ends. On a machine with an NVIDIA GPU you can run the same steps directly (the first command downloads CIFAR-10-C, about three gigabytes):
 
 ```bash
 .venv/bin/python -m scripts.download_cifar10c
@@ -85,6 +89,8 @@ with `SEED` left at its default, then Runtime > Run all. The notebook mounts Goo
 .venv/bin/python -m scripts.collect_results --from <downloaded results folder>
 ```
 
+**Shortcuts.** `make help` lists `make` targets for each step above (`setup`, `data`, `smoke`, `pilot`, `train-all`, `analyze`, `report`, `app`, `check`). `make smoke`, `make pilot` and `make train-all` first run `make data`, which downloads CIFAR-10 and CIFAR-10-C (about three gigabytes) unless they are already in `DATA_DIR`. [docs/CLOUD.md](docs/CLOUD.md) covers the results viewer, Colab, Docker and training on a rented GPU machine.
+
 ## Repository layout
 
 ```
@@ -92,6 +98,7 @@ configs/            one YAML file per model and strategy
 src/                data loading, our seen corruptions, models, training, evaluation, metrics, analysis
 scripts/            CIFAR-10-C download, matrix runner, result import, figures, report builder
 notebooks/          Colab and Kaggle runners, data exploration, analysis
+app/                results viewer and demo (Streamlit), its bundled sample images
 results/raw/        per-run results: one CSV per run, confusion matrices, training logs
 results/tables/     aggregated tables and report_numbers.json (every number in the report)
 results/figures/    the report's figures (PNG and PDF)
