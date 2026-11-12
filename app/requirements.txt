@@ -1,4 +1,12 @@
-# The viewer's own dependencies, on top of requirements.txt and torch/torchvision (Phase 11).
-# Checked to install together with requirements.txt on Python 3.11 and 3.12.
+# Everything the viewer needs (Phase 11). Streamlit Community Cloud installs only the dependency
+# file next to the entrypoint, so this file is complete on its own: the CPU builds of torch and
+# torchvision (the versions of requirements-local.txt, from PyTorch's wheel pages, so that uv and
+# pip both pick them), the pins of requirements.txt (path relative to this file), and the app's
+# own packages. Checked with uv and pip on Python 3.12, and in the Docker image (Python 3.11).
+--find-links https://download.pytorch.org/whl/torch/
+--find-links https://download.pytorch.org/whl/torchvision/
+torch==2.11.0+cpu
+torchvision==0.26.0+cpu
+-r ../requirements.txt
 streamlit==1.67.0
 huggingface_hub==2.4.0

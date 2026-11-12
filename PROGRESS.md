@@ -1049,3 +1049,47 @@ All in `results/tables/report_numbers.json` [real]; new ones written by `src/ana
 
 ### Ideas for later
 - none
+
+## Phase 11: publishing and hosting change  (2026-11-12, branch phase-11-deploy, commit: the one titled "phase 11: model repo published, viewer hosting moved to Streamlit Community Cloud")
+
+### Built
+- **Model repo published** (the human's go-ahead and Hugging Face login): https://huggingface.co/x-striker-x/cifar10-robustness-models, public, the 6 seed-0 state dicts, `models.json`, model card. Uploaded with `scripts.publish_hf` from `dist/checkpoints/`; the token was read from the CLI login store into `HF_TOKEN` for that command only, never printed or written to the repo, and the login was removed afterwards (`hf auth logout` -> `Successfully logged out from all access tokens.`).
+- **No Hugging Face Space.** `api.create_repo(..., repo_type="space", space_sdk="docker")` -> `402 Payment Required ... Static Spaces are free for everyone, but hosting Gradio and Docker Spaces on free cpu-basic requires a PRO subscription.` No Space exists (`repo_exists` -> `False`).
+- `docs/agent-prompts/DECISIONS.md` D10 + change log: viewer hosted on Streamlit Community Cloud instead, approved by the human. The human's GitHub account needs **admin** on the repo for that (Community Cloud requires it; the account has push only), which the repo owner is to grant; the human then deploys.
+- `app/requirements.txt`: complete on its own, because Community Cloud installs only the dependency file next to the entrypoint: `--find-links` to PyTorch's torch/torchvision wheel pages with `torch==2.11.0+cpu`, `torchvision==0.26.0+cpu` (same versions as `requirements-local.txt`), `-r ../requirements.txt`, streamlit, huggingface_hub. A plain `--extra-index-url` failed with uv (`no version of tqdm==4.70.1`: uv takes each package only from the first index that has it).
+- `app/streamlit_app.py`: `secrets_to_env()` copies `HF_MODEL_REPO` from Streamlit secrets into the environment if it is not set there (how Community Cloud passes settings).
+- `Makefile`: `HF_MODEL_REPO ?= x-striker-x/cifar10-robustness-models`, so `make app` and `make docker-app` give the full demo; `make app CHECKPOINTS=dir` uses local files; `HF_MODEL_REPO=` for Results only.
+- `README.template.md` -> `README.md`, `docs/CLOUD.md`: model repo link; (e) gains the Community Cloud steps (repo, branch `main`, `app/streamlit_app.py`, secret `HF_MODEL_REPO`) and the Space/PRO note.
+- `tests/test_app.py`: the torch pins of `app/requirements.txt` must equal `requirements-local.txt`.
+
+### How to run it
+    make app                       # downloads the 6 models from the public model repo
+    make docker-build && make docker-app
+
+### Verified (with output)
+- Hub checksums: `hub <file>: <sha256> ok` for all 6 files (download into a fresh cache, compared with `models.json`); the repo lists `.gitattributes, README.md, 6 x .pt, models.json`; read without a token -> `9 files`.
+- Container from the Hub, no token, AppTest inside: `58s exceptions 0 warnings []`, the 6 model headings, captions `clean test accuracy 84.0% ... 92.4% (seed 0)`.
+- AppTest with `at.secrets["HF_MODEL_REPO"]` set and no env var -> models loaded, `exceptions 0 warnings []`; with no secrets file -> `exceptions 0 errors []` and the "not configured" info.
+- Rebuilt image (12m03s, 2,753,709,458 bytes; torch `2.11.0+cpu`, uid 1000): `make docker-app` passes `HF_MODEL_REPO=x-striker-x/cifar10-robustness-models`; Try it from the Hub -> `63s exceptions 0 warnings []`, 6 models.
+- `make check` -> ruff clean, `400 passed ... in 87.23s`.
+- `app/requirements.txt` alone in fresh Python 3.12.16 venvs: uv 0.13.7 -> `2.11.0+cpu 0.26.0+cpu 2.2.6 1.67.0` (venv 1.6 GB); pip -> `2.11.0+cpu 0.26.0+cpu 2.2.6 1.67.0`.
+
+### Numbers produced
+- none (checksums as in the Phase 11 entry above)
+
+### Changed from earlier phases
+- `docs/agent-prompts/DECISIONS.md` D10 (hosting), approved by the human; no result is affected.
+
+### Not done / deferred
+- Deploying on Streamlit Community Cloud -> after the repo owner grants the human admin, this branch is re-validated, merged and pushed; the human signs in at share.streamlit.io and deploys; then the app URL goes into the README and CLOUD.md (a), and the app is checked.
+- Community Cloud's memory limit is not in the docs pages read; whether the 6 models fit is checked on deploy.
+- The OAuth authorization of the "Hugging Face CLI" app stays on the human's account until removed in Settings -> Connected Apps (the local token is deleted).
+
+### Known issues
+- `app/README.md` (the Space header) and the Space part of `scripts/publish_hf.py` are unused unless someone has Hugging Face PRO.
+
+### Decisions used
+- D10 (changed): Streamlit Community Cloud for the viewer, Hugging Face model repo for the checkpoints.
+
+### Ideas for later
+- none

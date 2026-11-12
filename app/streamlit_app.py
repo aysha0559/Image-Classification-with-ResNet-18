@@ -10,6 +10,7 @@ CIFAR-10-C versions) or on an uploaded image (with our 4 seen corruptions). Chec
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -104,6 +105,23 @@ def results_page() -> None:
 
 
 # ---------------------------------------------------------------- Try it page
+
+
+def secrets_to_env(names: tuple[str, ...] = ("HF_MODEL_REPO",)) -> None:
+    """Copy settings from Streamlit secrets into the environment if not already set there.
+
+    Streamlit Community Cloud takes app settings as secrets; Docker and local runs use
+    environment variables and usually have no secrets file at all.
+    """
+    for name in names:
+        if os.environ.get(name, "").strip():
+            continue
+        try:
+            value = st.secrets.get(name)
+        except Exception:  # no secrets file: nothing to copy
+            continue
+        if value:
+            os.environ[name] = str(value).strip()
 
 
 @st.cache_resource(show_spinner="Loading the 6 models ...")
@@ -212,6 +230,7 @@ def try_it_page() -> None:
         "noise uses a fixed seed."
     )
 
+    secrets_to_env()
     source = core.checkpoint_source()
     if source is None:
         st.info(

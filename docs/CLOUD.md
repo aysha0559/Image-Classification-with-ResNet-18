@@ -5,7 +5,7 @@ repository root unless said otherwise.
 
 | Path | For | Needs |
 |---|---|---|
-| (a) View the results viewer | looking at the results and the demo | a browser |
+| (a) View the results viewer | looking at the results and the demo | a browser (or `make app`) |
 | (b) Run on Google Colab | re-running a stage on a free GPU | a Google account |
 | (c) Run locally with `make` | everything on your own machine | Python 3.10+ (3.12 used), `make`; Docker for the image |
 | (d) Train on a cloud GPU machine | the full matrix without Colab's limits | an NVIDIA GPU, Docker, the NVIDIA container toolkit |
@@ -24,7 +24,9 @@ The viewer has two pages:
   of the 4 corruptions seen in corruption-aware training (`src/data/corruptions.py`). Uploads are
   kept in memory only and never saved.
 
-It is not published online yet. Run it yourself with (c) or (e).
+The hosted version (Streamlit Community Cloud, DECISIONS D10) is not online yet. Until then, run
+it yourself with (c); `make app` downloads the 6 models from the public model repo
+[x-striker-x/cifar10-robustness-models](https://huggingface.co/x-striker-x/cifar10-robustness-models).
 
 ## (b) Run on Google Colab
 
@@ -64,23 +66,23 @@ make smoke      # downloads CIFAR-10 and CIFAR-10-C (about 2.9 GB) first, then a
 `./data`) and verifies every file against `splits/cifar10c_checksums.json`; it skips files that
 are already there and verified.
 
-The Try it page needs the 6 checkpoints. With access to the run folders (`$RUNS_DIR`, default
-`./runs`), export them and point the viewer at them:
+The Try it page needs the 6 checkpoints. `make app` and `make docker-app` download them from the
+public model repo (`HF_MODEL_REPO`, default `x-striker-x/cifar10-robustness-models`, about
+140 MB once; `HF_MODEL_REPO=` for Results only). With access to the run folders (`$RUNS_DIR`,
+default `./runs`), you can export them and use the local files instead:
 
 ```bash
 .venv/bin/python -m scripts.export_checkpoints          # writes dist/checkpoints/
-LOCAL_CHECKPOINT_DIR=dist/checkpoints make app
+make app CHECKPOINTS=dist/checkpoints
 ```
-
-or, once they are on the Hugging Face Hub, `HF_MODEL_REPO=<user>/<model repo> make app`.
 
 **Docker** (the same image as (e)):
 
 ```bash
 make docker-build                               # docker build -t cifar10-robustness-app .
-make docker-app                                 # http://localhost:7860, Results only
-make docker-app CHECKPOINTS=dist/checkpoints    # mounts the folder for Try it
-make docker-app HF_MODEL_REPO=<user>/<repo>     # downloads the models from the Hub
+make docker-app                                 # http://localhost:7860, models from the Hub
+make docker-app CHECKPOINTS=dist/checkpoints    # mounts local files for Try it instead
+make docker-app HF_MODEL_REPO=                  # Results only
 ```
 
 The image is CPU only (`python:3.11-slim`, torch from the PyTorch CPU wheel index), runs as a
@@ -122,13 +124,32 @@ Not tested in this project: the study's runs were made on Colab and Kaggle T4 GP
 
 ## (e) Host the viewer elsewhere
 
+**Streamlit Community Cloud** (free; how this project hosts it, DECISIONS D10). You need a
+Streamlit Community Cloud account signed in with GitHub and **admin** rights on the repository
+(their requirement). At share.streamlit.io: Create app, choose the repository, branch `main` and
+the file `app/streamlit_app.py`; under Advanced settings choose Python 3.12 if a version is offered
+(it is the version this project was developed with), and put this into
+Secrets:
+
+```toml
+HF_MODEL_REPO = "x-striker-x/cifar10-robustness-models"
+```
+
+Community Cloud installs `app/requirements.txt`, which is complete on its own (CPU torch, the pins
+of `requirements.txt`, Streamlit), and runs from the repository root. The app copies
+`HF_MODEL_REPO` from the secrets into its environment.
+
+**Any Docker host.**
+
 The `Dockerfile` builds a self-contained viewer that listens on port 7860. Any service that runs
 a Docker image and routes HTTP to a container port can host it: build and push the image to a
 registry the service can read, run it with port 7860 exposed, and set `HF_MODEL_REPO` in its
 environment for the Try it page. No secret is needed to read a public model repo. Streamlit's
 health check is at `/_stcore/health`.
 
-For a Hugging Face Space (Docker SDK), `scripts/publish_hf.py` uploads the files the Dockerfile
+**Hugging Face Space.** Docker Spaces on the free CPU need a Hugging Face PRO subscription (the
+Hub refused to create one with `402 Payment Required` on 2026-11-12). With one,
+`scripts/publish_hf.py` uploads the files the Dockerfile
 needs plus `app/README.md` as the Space's `README.md` (its YAML header sets `sdk: docker` and
 `app_port: 7860`), and sets the Space variable `HF_MODEL_REPO`:
 
@@ -137,5 +158,8 @@ needs plus `app/README.md` as the Space's `README.md` (its YAML header sets `sdk
 .venv/bin/python -m scripts.publish_hf --model-repo <user>/<model repo> --space <user>/<space> --dry-run
 HF_TOKEN=... .venv/bin/python -m scripts.publish_hf --model-repo <user>/<model repo> --space <user>/<space>
 ```
+
+`--skip-space` uploads only the checkpoints, as was done for
+`x-striker-x/cifar10-robustness-models` (all 6 sha256 values on the Hub match `models.json`).
 
 The token is read from the environment only; never commit it.

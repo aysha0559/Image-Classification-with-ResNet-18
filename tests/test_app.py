@@ -358,3 +358,20 @@ def test_failure_memo_remembers_then_expires():
     assert memo.recent(key, now=310.0) is None
     memo.clear(key)
     assert memo.recent(key, now=11.0) is None
+
+
+def test_app_requirements_pin_the_same_torch_as_requirements_local():
+    """app/requirements.txt (complete, for Streamlit Community Cloud) must match the local pins."""
+
+    def pins(path):
+        out = {}
+        for line in (REPO / path).read_text().splitlines():
+            line = line.split("#")[0].strip()
+            if "==" in line and not line.startswith("-"):
+                name, version = line.split("==")
+                out[name.lower()] = version.split("+")[0]
+        return out
+
+    app, local = pins("app/requirements.txt"), pins("requirements-local.txt")
+    assert app["torch"] == local["torch"] and app["torchvision"] == local["torchvision"]
+    assert "-r ../requirements.txt" in (REPO / "app" / "requirements.txt").read_text()

@@ -6,7 +6,9 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 IMAGE ?= cifar10-robustness-app
 PORT ?= 7860
-# docker-app: a folder from scripts.export_checkpoints to mount for the Try it page (optional)
+# Try it page: the public model repo with the 6 seed-0 models (HF_MODEL_REPO= for Results only),
+# or CHECKPOINTS=<folder from scripts.export_checkpoints> to use local files instead.
+HF_MODEL_REPO ?= x-striker-x/cifar10-robustness-models
 CHECKPOINTS ?=
 SMOKE_RUN := $(or $(RUNS_DIR),./runs)/smoke-cnn-standard-s0
 
@@ -42,14 +44,15 @@ analyze: ## Rebuild results/tables and figures from results/raw (CPU, no data ne
 report: ## Rebuild report/report.md and README.md from report_numbers.json
 	$(PY) -m scripts.build_report
 
-app: ## Run the results viewer locally on http://localhost:7860 (PORT=...)
+app: ## Run the results viewer locally on http://localhost:7860; models from HF_MODEL_REPO
+	HF_MODEL_REPO=$(HF_MODEL_REPO) $(if $(CHECKPOINTS),LOCAL_CHECKPOINT_DIR=$(abspath $(CHECKPOINTS))) \
 	$(PY) -m streamlit run app/streamlit_app.py --server.port=$(PORT) --server.headless=true \
 		--server.maxUploadSize=5 --browser.gatherUsageStats=false
 
 docker-build: ## Build the CPU app image (IMAGE=cifar10-robustness-app)
 	docker build -t $(IMAGE) .
 
-docker-app: ## Run the app image on port 7860; Try it needs HF_MODEL_REPO=... or CHECKPOINTS=dir
+docker-app: ## Run the app image on port 7860; models from HF_MODEL_REPO or CHECKPOINTS=dir
 	docker run --rm -p $(PORT):7860 \
 		$(if $(HF_MODEL_REPO),-e HF_MODEL_REPO=$(HF_MODEL_REPO)) \
 		$(if $(CHECKPOINTS),-v $(abspath $(CHECKPOINTS)):/checkpoints:ro -e LOCAL_CHECKPOINT_DIR=/checkpoints) \
