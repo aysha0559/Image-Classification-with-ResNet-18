@@ -1,0 +1,4 @@
+# The viewer's own dependencies, on top of requirements.txt and torch/torchvision (Phase 11).
+# Checked to install together with requirements.txt on Python 3.11 and 3.12.
+streamlit==1.67.0
+huggingface_hub==2.4.0

@@ -11,12 +11,13 @@ TRAINING_CODE = [
     REPO / "src" / "data" / "corruptions.py",
     *sorted((REPO / "src" / "models").rglob("*.py")),
 ]
-# RULES section 3: the only modules allowed to import src.data.cifar10c (plus the Phase 11
-# demo asset builder under app/, which is outside src/ and scripts/).
+# RULES section 3: the only modules allowed to import src.data.cifar10c, including the Phase 11
+# demo asset builder.
 ALLOWED_IMPORTERS = {
     REPO / "src" / "evaluate.py",
     REPO / "scripts" / "make_sample_grid.py",
     REPO / "src" / "data" / "cifar10c.py",
+    REPO / "app" / "build_assets.py",
 }
 
 
@@ -44,12 +45,10 @@ def _imports_cifar10c(path: Path) -> bool:
 
 
 def test_only_allowed_modules_import_cifar10c():
-    files = sorted((REPO / "src").rglob("*.py")) + sorted((REPO / "scripts").rglob("*.py"))
+    files = [p for d in ("src", "scripts", "app") for p in sorted((REPO / d).rglob("*.py"))]
     offenders = [
         str(p.relative_to(REPO))
         for p in files
         if p not in ALLOWED_IMPORTERS and _imports_cifar10c(p)
     ]
-    assert not offenders, (
-        f"only evaluate.py and make_sample_grid.py may import cifar10c: {offenders}"
-    )
+    assert not offenders, f"only the allowed modules may import cifar10c: {offenders}"

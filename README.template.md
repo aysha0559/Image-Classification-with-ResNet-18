@@ -4,8 +4,10 @@
 
 We train a Simple CNN and ResNet-18 from scratch on CIFAR-10 with three training strategies (standard, AugMix, corruption-aware), 3 seeds each, and test them on clean CIFAR-10 and on CIFAR-10-C: 15 corruption types (noise, blur, weather, digital) at 5 severity levels. Every number below is filled in by a script from the result files.
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aysha0559/Image-Classification-with-ResNet-18/blob/main/notebooks/run_on_colab.ipynb)
+
 - **Report:** [report/report.md](report/report.md)
-- **Live demo:** coming in a later phase (link to be added)
+- **Results viewer and live demo:** not published online yet. Run it yourself with `make app` or Docker (`make docker-build docker-app`), see [docs/CLOUD.md](docs/CLOUD.md).
 
 ![Accuracy against corruption severity](results/figures/fig2_acc_vs_severity.png)
 
@@ -85,6 +87,8 @@ with `SEED` left at its default, then Runtime > Run all. The notebook mounts Goo
 .venv/bin/python -m scripts.collect_results --from <downloaded results folder>
 ```
 
+**Shortcuts.** `make help` lists `make` targets for each step above (`setup`, `data`, `smoke`, `pilot`, `train-all`, `analyze`, `report`, `app`, `check`). [docs/CLOUD.md](docs/CLOUD.md) covers the results viewer, Colab, Docker and training on a rented GPU machine.
+
 ## Repository layout
 
 ```
@@ -92,6 +96,7 @@ configs/            one YAML file per model and strategy
 src/                data loading, our seen corruptions, models, training, evaluation, metrics, analysis
 scripts/            CIFAR-10-C download, matrix runner, result import, figures, report builder
 notebooks/          Colab and Kaggle runners, data exploration, analysis
+app/                results viewer and demo (Streamlit), its bundled sample images
 results/raw/        per-run results: one CSV per run, confusion matrices, training logs
 results/tables/     aggregated tables and report_numbers.json (every number in the report)
 results/figures/    the report's figures (PNG and PDF)

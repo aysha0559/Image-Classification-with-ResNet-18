@@ -1,0 +1,37 @@
+# Optional (Phase 11): train and evaluate the experiment matrix on any machine with an NVIDIA GPU,
+# Docker and the NVIDIA container toolkit. See docs/CLOUD.md, path (d).
+#
+#   docker build -f Dockerfile.gpu -t cifar10-robustness-train .
+#   mkdir -p data runs results-gpu
+#   docker run --rm --gpus all --user "$(id -u):$(id -g)" \
+#       -v "$PWD:/repo" -v "$PWD/data:/data" -v "$PWD/runs:/runs" -v "$PWD/results-gpu:/results" \
+#       cifar10-robustness-train [--models ...] [--strategies ...] [--seeds ...]
+#
+# The image holds the environment only; the repository is mounted at /repo, so each run records
+# the real git commit (CONTRACTS C6). RESULTS_DIR must be a new folder: in a clone,
+# results/raw/ already holds all 18 runs, and scripts/run_all.sh would skip them all.
+# torch is the base image's 2.11.0 + CUDA 13.0, the version of the Colab runs of 2026-11-04
+# (DECISIONS D9); it is not reinstalled.
+FROM pytorch/pytorch:2.11.0-cuda13.0-cudnn9-runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DATA_DIR=/data \
+    RUNS_DIR=/runs \
+    RESULTS_DIR=/results \
+    PYTHON=python \
+    HOME=/tmp \
+    MPLCONFIGDIR=/tmp/matplotlib
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && git config --system --add safe.directory /repo
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
+
+VOLUME ["/repo", "/data", "/runs", "/results"]
+WORKDIR /repo
+ENTRYPOINT ["bash", "scripts/run_all.sh"]
