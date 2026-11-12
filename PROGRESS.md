@@ -1128,3 +1128,37 @@ All in `results/tables/report_numbers.json` [real]; new ones written by `src/ana
 
 ### Ideas for later
 - none
+
+## Phase 11: leftovers  (2026-11-12, branch phase-11-deploy, commit: the one titled "report: add report.pdf; record leftover clean-up")
+
+### Built
+- `report/report.pdf` (optional in CONTRACTS C1): 15 A4 pages, 1,445,715 bytes, made from `report/report.md` without pandoc (not installed): Python `markdown` 3.11.3 (tables extension) into HTML in a scratch folder, then `google-chrome --headless=new --print-to-pdf`. All 8 figures, Tables 1-3, the setup table and the references checked page by page. It is not rebuilt by `scripts.build_report`; regenerate it the same way if the report changes.
+- Hugging Face: the "Hugging Face CLI" app authorization revoked in Settings -> Connected Apps ("No connected external apps"); the model repo is still public (9 files, read without a token).
+- Google Drive: the unused partial Colab run `runs/resnet18-augmix-s2` (config, run_meta, an 858-byte train log, `checkpoint_last.pt`, no `model_final.pt`) renamed to `runs/resnet18-augmix-s2_invalid-moved-to-kaggle`, as the DECISIONS change log of 2026-11-10 asked. Nothing was deleted.
+
+### How to run it
+    # PDF, as done here (scratch paths): markdown -> HTML with a <base> pointing at report/, then
+    google-chrome --headless=new --no-pdf-header-footer --print-to-pdf=report/report.pdf file:///<scratch>/report.html
+
+### Verified (with output)
+- PDF opened and read: 15 pages, figures 1-8 and all tables present.
+- Hugging Face Connected Apps page after Revoke: "No connected external apps".
+- Drive `runs/` listing shows `resnet18-augmix-s2_invalid-moved-to-kaggle` and no `resnet18-augmix-s2`.
+
+### Numbers produced
+- none
+
+### Changed from earlier phases
+- none (report.pdf is a new optional file of C1)
+
+### Not done / deferred
+- The nightly shutdown timer (`daily-poweroff.timer`, disabled since Phase 08) needs `sudo`; the human re-enables it in their own terminal.
+
+### Known issues
+- none
+
+### Decisions used
+- none
+
+### Ideas for later
+- none
