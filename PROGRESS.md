@@ -1011,4 +1011,41 @@ All in `results/tables/report_numbers.json` [real]; new ones written by `src/ana
 
 ### Ideas for later
 - A slimmer `app/requirements-runtime.txt` for the image (needs a C1 change).
-- Cache a failed model load for a few minutes so offline reruns of Try it do not wait for the Hub again.
+- (done in the fixes below) Cache a failed model load for a few minutes.
+
+## Phase 11: fixes after validation  (2026-11-12, branch phase-11-deploy, commit: the one titled "phase 11: README setup and offline retry fixes")
+
+### Built
+- Fixes for friction points 1-3 and 9 of `validation/phase-11.md` (verdict PASS), chosen by the human.
+- `README.template.md` -> `README.md`: the manual install also installs `app/requirements.txt` (`make app` failed after it); Python note says python3.12 was used and how to use another interpreter (`make setup PYTHON=<your python>`); the download size of CIFAR-10-C is stated where `scripts.download_cifar10c` and the `make` data targets are mentioned (worded without digits because of the build_report guard).
+- `app/core.py`: `FailureMemo`, remembering a failed checkpoint load for 5 minutes. `app/streamlit_app.py` uses one per process (`st.cache_resource`), so Try it no longer waits for the Hub client's retries on every rerun; the warning says when loading is tried again.
+- `tests/test_app.py`: one new test for `FailureMemo`.
+
+### How to run it
+    make check
+    make docker-build && docker run --rm --network none -e HF_MODEL_REPO=someone/repo -p 7860:7860 cifar10-robustness-app
+
+### Verified (with output)
+- `make check` -> ruff clean, `399 passed`.
+- `python -m scripts.build_report --quiet` -> `wrote report/report.md`, `wrote README.md`; `report/report.md` unchanged.
+- Container with `--network none` and an unreachable `HF_MODEL_REPO`, Try it twice in one process (AppTest inside the container): `run 1: 26.4s ... Loading is tried again 5 minutes after the failure.`, `run 2: 0.3s` (same warning); Results `exceptions 0 figures 8`. Image size unchanged at 2.75 GB.
+
+### Numbers produced
+- none
+
+### Changed from earlier phases
+- none beyond this phase's files
+
+### Not done / deferred
+- Friction points 4-8 and 10 of `validation/phase-11.md` left as they are (4 and 5 resolve when pushed and published).
+- Hugging Face publishing -> the human is creating an account; then dry run, publish, Space check, URL into the README.
+- Re-validation of this commit -> before merging.
+
+### Known issues
+- none new
+
+### Decisions used
+- D10 unchanged.
+
+### Ideas for later
+- none

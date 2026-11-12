@@ -283,6 +283,33 @@ def fetch_checkpoints(kind: str, where: str) -> tuple[list[dict], dict[str, Path
     return entries, paths
 
 
+class FailureMemo:
+    """Remembers a failed checkpoint load for `retry_after_s` seconds.
+
+    `st.cache_resource` does not cache exceptions, so without this an unreachable model repo
+    would make every rerun of the Try it page wait for the Hub client's retries again.
+    """
+
+    def __init__(self, retry_after_s: float = 300.0) -> None:
+        self.retry_after_s = retry_after_s
+        self._failures: dict[tuple[str, str], tuple[float, str]] = {}
+
+    def recent(self, key: tuple[str, str], now: float) -> str | None:
+        """Return the remembered message if `key` failed less than `retry_after_s` ago."""
+        failed = self._failures.get(key)
+        if failed is None or now - failed[0] >= self.retry_after_s:
+            return None
+        return failed[1]
+
+    def record(self, key: tuple[str, str], now: float, message: str) -> None:
+        """Remember that loading `key` failed at time `now`."""
+        self._failures[key] = (now, message)
+
+    def clear(self, key: tuple[str, str]) -> None:
+        """Forget a failure, after a successful load."""
+        self._failures.pop(key, None)
+
+
 def load_model(entry: dict, path: Path) -> nn.Module:
     """Build `entry['model']`, load the exported state dict on the CPU, set eval mode."""
     model = build_model(entry["model"])

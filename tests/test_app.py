@@ -346,3 +346,15 @@ def test_dockerfile_and_ignore():
         assert entry in ignored
     header = (REPO / "app" / "README.md").read_text().split("---")[1]
     assert "sdk: docker" in header and "app_port: 7860" in header
+
+
+def test_failure_memo_remembers_then_expires():
+    memo = core.FailureMemo(retry_after_s=300)
+    key = ("hub", "user/repo")
+    assert memo.recent(key, now=0.0) is None
+    memo.record(key, now=10.0, message="OSError: offline")
+    assert memo.recent(key, now=200.0) == "OSError: offline"
+    assert memo.recent(("local", "/x"), now=200.0) is None
+    assert memo.recent(key, now=310.0) is None
+    memo.clear(key)
+    assert memo.recent(key, now=11.0) is None

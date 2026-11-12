@@ -40,7 +40,7 @@ These hold on 32x32 CIFAR-10 images with synthetic corruptions; see the report's
 
 ## Reproduce
 
-Everything below runs from the repository root. Python 3.10+; the analysis steps need no GPU.
+Everything below runs from the repository root. Python 3.10+ (developed with python3.12; with another version, change `python3.12` below, or run `make setup PYTHON=<your python>`); the analysis steps need no GPU.
 
 **Set up** (once):
 
@@ -48,8 +48,10 @@ Everything below runs from the repository root. Python 3.10+; the analysis steps
 git clone https://github.com/aysha0559/Image-Classification-with-ResNet-18.git
 cd Image-Classification-with-ResNet-18
 python3.12 -m venv .venv
-.venv/bin/pip install -r requirements-local.txt -r requirements.txt
+.venv/bin/pip install -r requirements-local.txt -r requirements.txt -r app/requirements.txt
 ```
+
+`make setup` does the same. `app/requirements.txt` adds the results viewer (`make app`).
 
 **1. View the results only.** Nothing to run: the report is [report/report.md](report/report.md), the tables are in [results/tables/](results/tables/) and the figures in [results/figures/](results/figures/). For example:
 
@@ -75,7 +77,7 @@ STRATEGY = "augmix"
 STAGE = "both"
 ```
 
-with `SEED` left at its default, then Runtime > Run all. The notebook mounts Google Drive, downloads and checks CIFAR-10-C, trains, evaluates and saves the results under `MyDrive/cifar10-robustness/`. Training resumes from the last checkpoint if the session ends. On a machine with an NVIDIA GPU you can run the same steps directly:
+with `SEED` left at its default, then Runtime > Run all. The notebook mounts Google Drive, downloads and checks CIFAR-10-C, trains, evaluates and saves the results under `MyDrive/cifar10-robustness/`. Training resumes from the last checkpoint if the session ends. On a machine with an NVIDIA GPU you can run the same steps directly (the first command downloads CIFAR-10-C, about three gigabytes):
 
 ```bash
 .venv/bin/python -m scripts.download_cifar10c
@@ -89,7 +91,7 @@ with `SEED` left at its default, then Runtime > Run all. The notebook mounts Goo
 .venv/bin/python -m scripts.collect_results --from <downloaded results folder>
 ```
 
-**Shortcuts.** `make help` lists `make` targets for each step above (`setup`, `data`, `smoke`, `pilot`, `train-all`, `analyze`, `report`, `app`, `check`). [docs/CLOUD.md](docs/CLOUD.md) covers the results viewer, Colab, Docker and training on a rented GPU machine.
+**Shortcuts.** `make help` lists `make` targets for each step above (`setup`, `data`, `smoke`, `pilot`, `train-all`, `analyze`, `report`, `app`, `check`). `make smoke`, `make pilot` and `make train-all` first run `make data`, which downloads CIFAR-10 and CIFAR-10-C (about three gigabytes) unless they are already in `DATA_DIR`. [docs/CLOUD.md](docs/CLOUD.md) covers the results viewer, Colab, Docker and training on a rented GPU machine.
 
 ## Repository layout
 

@@ -11,6 +11,7 @@ CIFAR-10-C versions) or on an uploaded image (with our 4 seen corruptions). Chec
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -110,6 +111,12 @@ def load_models(kind: str, where: str) -> list[tuple[dict, object]]:
     """Fetch, check and load the seed-0 checkpoints once per process."""
     entries, paths = core.fetch_checkpoints(kind, where)
     return [(e, core.load_model(e, paths[e["run_id"]])) for e in core.sort_entries(entries)]
+
+
+@st.cache_resource
+def load_failures() -> core.FailureMemo:
+    """One failure memo per process, shared by all sessions."""
+    return core.FailureMemo()
 
 
 @st.cache_resource
@@ -214,13 +221,21 @@ def try_it_page() -> None:
         )
         st.markdown(CITATIONS)
         return
-    try:
-        models = load_models(*source)
-    except Exception as err:  # network down, missing file, bad checksum: degrade, do not crash
-        reason = str(err).strip().splitlines()[0][:200] if str(err).strip() else ""
+    failures = load_failures()
+    message = failures.recent(source, time.monotonic())
+    if message is None:
+        try:
+            models = load_models(*source)
+            failures.clear(source)
+        except Exception as err:  # network down, missing file, bad checksum: degrade, no crash
+            reason = str(err).strip().splitlines()[0][:200] if str(err).strip() else ""
+            message = f"{type(err).__name__}: {reason}"
+            failures.record(source, time.monotonic(), message)
+    if message is not None:
+        minutes = round(failures.retry_after_s / 60)
         st.warning(
-            f"The demo models could not be loaded from {source[1]} "
-            f"({type(err).__name__}: {reason}). The Results page still works."
+            f"The demo models could not be loaded from {source[1]} ({message}). The Results "
+            f"page still works. Loading is tried again {minutes} minutes after the failure."
         )
         st.markdown(CITATIONS)
         return
