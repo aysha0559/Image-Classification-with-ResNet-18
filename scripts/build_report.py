@@ -63,6 +63,11 @@ ALLOW_LIST: tuple[tuple[str, str, str], ...] = (
         r"(?:aysha0559/)?Image-Classification-with-ResNet-18",
         "GitHub repository name and URL",
     ),
+    (
+        "live demo",
+        r"https://image-classification-with-resnet-18-eusbrgtp3ffsvasx3ejphi\.streamlit\.app/",
+        "Streamlit Community Cloud app URL (Phase 11)",
+    ),
     ("project name", r"\bcifar10-robustness(?:-study)?\b|\bdownload_cifar10c\b", "names"),
     ("dataset", r"CIFAR-10(?:-C|\.1)?|ImageNet-C", "dataset name"),
     ("run id", r"\b(?:cnn|resnet18)-[a-z_]+-s[0-2]\b", "run id (CONTRACTS C3)"),

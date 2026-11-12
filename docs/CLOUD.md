@@ -5,7 +5,7 @@ repository root unless said otherwise.
 
 | Path | For | Needs |
 |---|---|---|
-| (a) View the results viewer | looking at the results and the demo | a browser (or `make app`) |
+| (a) View the results viewer | looking at the results and the demo | a browser |
 | (b) Run on Google Colab | re-running a stage on a free GPU | a Google account |
 | (c) Run locally with `make` | everything on your own machine | Python 3.10+ (3.12 used), `make`; Docker for the image |
 | (d) Train on a cloud GPU machine | the full matrix without Colab's limits | an NVIDIA GPU, Docker, the NVIDIA container toolkit |
@@ -24,9 +24,10 @@ The viewer has two pages:
   of the 4 corruptions seen in corruption-aware training (`src/data/corruptions.py`). Uploads are
   kept in memory only and never saved.
 
-The hosted version (Streamlit Community Cloud, DECISIONS D10) is not online yet. Until then, run
-it yourself with (c); `make app` downloads the 6 models from the public model repo
-[x-striker-x/cifar10-robustness-models](https://huggingface.co/x-striker-x/cifar10-robustness-models).
+Open **https://image-classification-with-resnet-18-eusbrgtp3ffsvasx3ejphi.streamlit.app/** (Streamlit Community Cloud, DECISIONS D10). An app that has not been visited for a
+while sleeps; the first visit wakes it and downloads the 6 models from the public model repo
+[x-striker-x/cifar10-robustness-models](https://huggingface.co/x-striker-x/cifar10-robustness-models),
+which can take a minute. The same app runs on your machine with `make app`, see (c).
 
 ## (b) Run on Google Colab
 
@@ -127,13 +128,18 @@ Not tested in this project: the study's runs were made on Colab and Kaggle T4 GP
 **Streamlit Community Cloud** (free; how this project hosts it, DECISIONS D10). You need a
 Streamlit Community Cloud account signed in with GitHub and **admin** rights on the repository
 (their requirement). At share.streamlit.io: Create app, choose the repository, branch `main` and
-the file `app/streamlit_app.py`; under Advanced settings choose Python 3.12 if a version is offered
-(it is the version this project was developed with), and put this into
+the file `app/streamlit_app.py`; under Advanced settings choose **Python 3.12** and put this into
 Secrets:
 
 ```toml
 HF_MODEL_REPO = "x-striker-x/cifar10-robustness-models"
 ```
+
+Do not keep the default Python version: on 2026-11-12 it was 3.14, for which numpy 2.2.6, scipy
+1.15.3 and scikit-image 0.25.2 have no wheels, and the install failed while building scipy (no
+Fortran compiler). The Python version of a deployed app cannot be changed; delete the app and
+deploy it again with the same subdomain (Community Cloud docs, "Upgrade your app's Python
+version").
 
 Community Cloud installs `app/requirements.txt`, which is complete on its own (CPU torch, the pins
 of `requirements.txt`, Streamlit), and runs from the repository root. The app copies

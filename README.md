@@ -9,7 +9,7 @@ We train a Simple CNN and ResNet-18 from scratch on CIFAR-10 with three training
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aysha0559/Image-Classification-with-ResNet-18/blob/main/notebooks/run_on_colab.ipynb)
 
 - **Report:** [report/report.md](report/report.md)
-- **Results viewer and live demo:** the hosted version is not online yet. `make app` (or Docker: `make docker-build docker-app`) runs it on your machine and downloads the models from the public model repo [x-striker-x/cifar10-robustness-models](https://huggingface.co/x-striker-x/cifar10-robustness-models); see [docs/CLOUD.md](docs/CLOUD.md).
+- **Live demo and results viewer:** [https://image-classification-with-resnet-18-eusbrgtp3ffsvasx3ejphi.streamlit.app/](https://image-classification-with-resnet-18-eusbrgtp3ffsvasx3ejphi.streamlit.app/) (Streamlit Community Cloud; the first visit may take a minute while it wakes up and downloads the models). The models are public at [x-striker-x/cifar10-robustness-models](https://huggingface.co/x-striker-x/cifar10-robustness-models). To run the viewer yourself: `make app`, or Docker (`make docker-build docker-app`); see [docs/CLOUD.md](docs/CLOUD.md).
 
 ![Accuracy against corruption severity](results/figures/fig2_acc_vs_severity.png)
 

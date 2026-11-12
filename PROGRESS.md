@@ -1093,3 +1093,38 @@ All in `results/tables/report_numbers.json` [real]; new ones written by `src/ana
 
 ### Ideas for later
 - none
+
+## Phase 11: live app  (2026-11-12, branch phase-11-deploy, commit: the one titled "phase 11: live Streamlit app URL, Python 3.12 note, round-2 validation")
+
+### Built
+- The viewer is live on Streamlit Community Cloud: https://image-classification-with-resnet-18-eusbrgtp3ffsvasx3ejphi.streamlit.app/ , deployed by the repo owner from `main` (`app/streamlit_app.py`, Python 3.12, secret `HF_MODEL_REPO`).
+- `README.template.md` -> `README.md`, `docs/CLOUD.md` (a) and (e): the app URL; (e) now says to choose Python 3.12 and why (see Known issues).
+- `scripts/build_report.py`: one allow-list entry for the app URL (it contains digits).
+- `.gitignore`: `.streamlit/secrets.toml` (round-2 validation note).
+- `validation/phase-11.md`: round 2 by an independent validator, verdict PASS for f9e9671 (round 1: PASS for 1a9bd57).
+
+### How to run it
+    open https://image-classification-with-resnet-18-eusbrgtp3ffsvasx3ejphi.streamlit.app/
+
+### Verified (with output)
+- Live app in Chrome: Results -> 8 figure images decoded (`1440x520 ... 1440x680`), 8 figure headings, 2 tables, no error elements. Try it -> the 6 models loaded from the Hub; test image 12 (dog), CIFAR-10-C Gaussian noise severity 5: `frog: 99.6%`, `frog: 99.1%`, `frog: 60.4%`, `frog: 84.2%`, `frog: 76.0%`, `dog: 97.2%` (Simple CNN standard/AugMix/corruption-aware, ResNet-18 standard/AugMix/corruption-aware), identical to the local `make app` run. Upload of a generated 64x48 PNG (273 bytes) through the file uploader -> accepted, shown at 32x32, 6 predictions; with Contrast severity 1 -> predictions updated; `exceptions 0, alerts []`.
+- `python -m scripts.build_report --quiet` -> both files written; `pytest -q tests/test_build_report.py tests/test_app.py` -> `50 passed`; ruff clean.
+
+### Numbers produced
+- none
+
+### Changed from earlier phases
+- `scripts/build_report.py` (Phase 10): the allow-list entry above, because the README now holds the app URL.
+
+### Not done / deferred
+- none for Phase 11. Optional for the human: remove the "Hugging Face CLI" app authorization in Hugging Face Settings -> Connected Apps.
+
+### Known issues
+- **First deploy failed** (2026-11-12): Community Cloud chose Python 3.14.10 by default; numpy 2.2.6, scipy 1.15.3 and scikit-image 0.25.2 have no wheels for it, uv failed building scipy (`Unknown compiler(s): [['gfortran'], ...]`) and the pip fallback stopped with `installer returned a non-zero exit code`. The owner deleted the app and redeployed with Python 3.12, which works. A deployed app's Python version cannot be changed (Community Cloud docs); CLOUD.md (e) says so.
+- The app sleeps when unused; the first visit after that waits for the wake-up and the model download.
+
+### Decisions used
+- D10 (as changed on 2026-11-12): Streamlit Community Cloud viewer, Hugging Face model repo.
+
+### Ideas for later
+- none
